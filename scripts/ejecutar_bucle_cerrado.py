@@ -13,6 +13,17 @@ from src.utilidades.registrador import registro
 def main():
     registro.info("🔄 Iniciando bucle cerrado de Orion...")
     
+    # Verificar que existen datos procesados
+    processed_dir = Path('datos/procesados')
+    if not processed_dir.exists():
+        registro.error("❌ No hay datos procesados. Ejecuta primero la tubería diaria.")
+        return
+    
+    archivos = list(processed_dir.glob('puntajes_*.parquet'))
+    if not archivos:
+        registro.error("❌ No hay puntajes disponibles. Ejecuta primero la tubería diaria.")
+        return
+    
     bucle = BucleCerrado()
     evaluacion = bucle.evaluar_modelo()
     

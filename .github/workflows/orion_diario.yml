@@ -47,3 +47,19 @@ jobs:
           name: model-metrics
           path: modelos/actual/metrics.json
           retention-days: 30
+
+      - name: Verify data availability
+        run: |
+            python -c "
+            from pathlib import Path
+            import sys
+            sys.path.append('.')
+            from src.datos.cargador import CargadorIncremental
+            cargador = CargadorIncremental()
+            consumo = cargador.verificar_disponibilidad('consumo')
+            if not consumo['disponible']:
+                print('❌ No hay datos de consumo disponibles')
+                print(f'   {consumo["mensaje"]}')
+                sys.exit(1)
+            print('✅ Datos disponibles')
+            "

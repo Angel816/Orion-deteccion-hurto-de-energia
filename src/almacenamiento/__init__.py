@@ -3,4 +3,10 @@
 Módulo de almacenamiento optimizado
 """
 
-__all__ = []
+from src.almacenamiento.particionado import AlmacenamientoParticionado
+from src.almacenamiento.compresion import CompresorDatos
+
+__all__ = [
+    'AlmacenamientoParticionado',
+    'CompresorDatos'
+]
