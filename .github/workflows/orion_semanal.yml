@@ -1,0 +1,35 @@
+# .github/workflows/orion_semanal.yml
+name: Orion Weekly Report
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'   # 8:00 AM todos los lunes
+  workflow_dispatch:
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Generate report
+        run: python scripts/generar_reporte_semanal.py || echo "Reporte no implementado"
+      
+      - name: Upload report
+        uses: actions/upload-artifact@v3
+        with:
+          name: weekly-report
+          path: reportes/reporte_semanal_*.html
+          retention-days: 30
