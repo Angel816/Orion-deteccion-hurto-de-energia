@@ -17,7 +17,7 @@ import random
 np.random.seed(99)
 random.seed(99)
 
-N_CLIENTES = 120
+N_CLIENTES = 140
 N_DIAS = 180
 FECHA_INICIO = datetime(2024, 1, 1)
 

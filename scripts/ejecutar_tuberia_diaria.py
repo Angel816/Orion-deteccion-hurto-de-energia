@@ -12,8 +12,6 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import json
-import smtplib
-from email.mime.text import MIMEText
 from src.datos.cargador import CargadorIncremental
 from src.datos.validador import ValidadorDatos
 from src.datos.limpiador import LimpiadorDatos
@@ -216,30 +214,66 @@ def main():
     seleccionados.to_csv(processed_dir / f'inspecciones_priorizadas_{timestamp}.csv', index=False)
     registro.info(f"💾 Guardado: puntajes_{timestamp}.parquet")
     
-    # 10b. Acumular en histórico
+    # ============================================================
+    # 10b. ACUMULAR EN HISTÓRICO (CORREGIDO - SIEMPRE CONCATENAR)
+    # ============================================================
+    
     puntajes_con_fecha = puntajes.copy()
     puntajes_con_fecha['fecha_ejecucion'] = fecha_actual
     puntajes_con_fecha['ejecucion_id'] = timestamp
+    puntajes_con_fecha['tipo_dato'] = 'puntaje'
     
     historico_path = processed_dir / 'historico_puntajes.parquet'
     
     if historico_path.exists():
+        # Cargar histórico existente
         historico_existente = pd.read_parquet(historico_path)
+        registro.info(f"📊 Histórico existente: {len(historico_existente)} registros")
         
+        # Verificar si ya existen datos con este timestamp (por si acaso)
         if 'ejecucion_id' in historico_existente.columns:
             if timestamp in historico_existente['ejecucion_id'].values:
+                registro.warning(f"⚠️ La ejecución {timestamp} ya existe en el histórico")
+                # Eliminar registros antiguos con este timestamp
                 historico_existente = historico_existente[historico_existente['ejecucion_id'] != timestamp]
+                registro.info(f"   Registros antiguos eliminados: {len(historico_existente)}")
         
+        # CONCATENAR SIEMPRE (nuevos datos + existentes)
         historico_actualizado = pd.concat([historico_existente, puntajes_con_fecha], ignore_index=True)
+        registro.info(f"📊 Histórico actualizado: {len(historico_actualizado)} registros (+{len(puntajes_con_fecha)})")
     else:
         historico_actualizado = puntajes_con_fecha
+        registro.info(f"📊 Histórico creado: {len(historico_actualizado)} registros")
     
+    # Guardar histórico actualizado
     historico_actualizado.to_parquet(historico_path, index=False)
     
-    # 10c. Última versión
+    # ============================================================
+    # 10c. GUARDAR ÚLTIMA VERSIÓN
+    # ============================================================
+    
     puntajes.to_parquet(processed_dir / 'puntajes_latest.parquet')
     seleccionados.to_csv(processed_dir / 'inspecciones_priorizadas_latest.csv', index=False)
     registro.info(f"💾 Última versión guardada: puntajes_latest.parquet")
+    
+    # ============================================================
+    # 10d. GUARDAR ESTADÍSTICAS DE LA EJECUCIÓN
+    # ============================================================
+    
+    stats = {
+        'timestamp': timestamp,
+        'fecha': fecha_actual.isoformat(),
+        'total_suministros': len(puntajes),
+        'alta_prioridad': len(puntajes[puntajes['prioridad'] == 'ALTA']),
+        'media_prioridad': len(puntajes[puntajes['prioridad'] == 'MEDIA']),
+        'baja_prioridad': len(puntajes[puntajes['prioridad'] == 'BAJA']),
+        'total_seleccionados': len(seleccionados),
+        'total_historico': len(historico_actualizado)
+    }
+    
+    stats_path = processed_dir / f'estadisticas_{timestamp}.json'
+    with open(stats_path, 'w', encoding='utf-8') as f:
+        json.dump(stats, f, indent=2, default=str)
     
     # ============================================================
     # 11. RESULTADOS
@@ -249,6 +283,8 @@ def main():
     registro.info(f"📋 {len(seleccionados)} casos seleccionados para inspección")
     registro.info(f"📊 Histórico acumulado: {len(historico_actualizado)} registros")
     registro.info(f"📅 Fecha ejecución: {fecha_actual.strftime('%Y-%m-%d %H:%M:%S')}")
+    if 'id_cliente' in historico_actualizado.columns:
+        registro.info(f"📊 Total histórico de suministros: {len(historico_actualizado['id_cliente'].unique())}")
 
 if __name__ == "__main__":
     main()

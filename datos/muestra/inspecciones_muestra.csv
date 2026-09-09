@@ -1,31 +1,40 @@
 id_cliente,fecha_inspeccion,resultado,tipo_irregularidad,cnr_estimado,inspector
-CL0001,2024-02-22,Falso Positivo,N/A,0.0,Inspector_3
-CL0001,2024-03-18,Normal,N/A,0.0,Inspector_5
-CL0002,2024-05-01,Normal,N/A,0.0,Inspector_5
-CL0004,2024-04-12,Hurto Confirmado,Manipulación Medidor,1240.09,Inspector_1
-CL0007,2024-05-10,Normal,N/A,0.0,Inspector_5
-CL0008,2024-04-20,Anomalía,Manipulación Medidor,1796.58,Inspector_2
-CL0014,2024-06-03,Normal,N/A,0.0,Inspector_5
-CL0019,2024-04-23,Normal,N/A,0.0,Inspector_4
-CL0020,2024-03-12,Normal,N/A,0.0,Inspector_4
-CL0024,2024-03-24,Anomalía,Auto-reconexión,6551.55,Inspector_1
-CL0024,2024-03-23,Normal,N/A,0.0,Inspector_1
-CL0025,2024-03-29,Anomalía,Conexión Clandestina,5419.96,Inspector_2
-CL0027,2024-02-02,Normal,N/A,0.0,Inspector_5
-CL0039,2024-06-03,Normal,N/A,0.0,Inspector_3
-CL0053,2024-03-03,Normal,N/A,0.0,Inspector_5
-CL0054,2024-03-20,Falso Positivo,N/A,0.0,Inspector_5
-CL0075,2024-02-15,Normal,N/A,0.0,Inspector_1
-CL0077,2024-02-28,Normal,N/A,0.0,Inspector_3
-CL0083,2024-02-15,Normal,N/A,0.0,Inspector_1
-CL0090,2024-03-01,Normal,N/A,0.0,Inspector_5
-CL0097,2024-05-16,Normal,N/A,0.0,Inspector_1
-CL0097,2024-06-01,Normal,N/A,0.0,Inspector_2
-CL0103,2024-04-25,Normal,N/A,0.0,Inspector_3
-CL0104,2024-06-01,Falso Positivo,N/A,0.0,Inspector_4
-CL0106,2024-03-03,Anomalía,Manipulación Medidor,1838.77,Inspector_1
-CL0108,2024-04-29,Normal,N/A,0.0,Inspector_3
-CL0113,2024-04-30,Normal,N/A,0.0,Inspector_5
-CL0115,2024-04-16,Normal,N/A,0.0,Inspector_3
-CL0119,2024-03-26,Hurto Confirmado,Bypass,3619.18,Inspector_5
-CL0120,2024-05-22,Normal,N/A,0.0,Inspector_3
+CL0008,2024-05-20,Normal,N/A,0.0,Inspector_2
+CL0009,2024-02-01,Hurto Confirmado,Manipulación Medidor,5827.55,Inspector_4
+CL0011,2024-04-10,Normal,N/A,0.0,Inspector_3
+CL0014,2024-02-04,Normal,N/A,0.0,Inspector_1
+CL0018,2024-05-23,Normal,N/A,0.0,Inspector_1
+CL0024,2024-04-21,Falso Positivo,N/A,0.0,Inspector_5
+CL0025,2024-05-02,Hurto Confirmado,Cable Rajado,3979.12,Inspector_3
+CL0030,2024-06-19,Hurto Confirmado,Bypass,5069.24,Inspector_1
+CL0032,2024-05-07,Normal,N/A,0.0,Inspector_5
+CL0033,2024-02-18,Normal,N/A,0.0,Inspector_4
+CL0034,2024-04-27,Normal,N/A,0.0,Inspector_4
+CL0036,2024-06-08,Normal,N/A,0.0,Inspector_2
+CL0039,2024-05-24,Anomalía,Cable Rajado,5064.15,Inspector_3
+CL0051,2024-03-13,Normal,N/A,0.0,Inspector_5
+CL0056,2024-04-13,Normal,N/A,0.0,Inspector_2
+CL0059,2024-03-18,Normal,N/A,0.0,Inspector_4
+CL0063,2024-04-18,Falso Positivo,N/A,0.0,Inspector_4
+CL0063,2024-04-28,Normal,N/A,0.0,Inspector_2
+CL0069,2024-04-23,Anomalía,Cable Rajado,7970.88,Inspector_4
+CL0075,2024-05-02,Normal,N/A,0.0,Inspector_2
+CL0075,2024-05-18,Hurto Confirmado,Conexión Clandestina,5992.76,Inspector_2
+CL0076,2024-05-27,Normal,N/A,0.0,Inspector_3
+CL0077,2024-03-02,Normal,N/A,0.0,Inspector_3
+CL0090,2024-05-17,Normal,N/A,0.0,Inspector_3
+CL0097,2024-06-05,Anomalía,Bypass,5451.71,Inspector_4
+CL0098,2024-06-23,Falso Positivo,N/A,0.0,Inspector_3
+CL0106,2024-02-26,Anomalía,Conexión Clandestina,7841.83,Inspector_3
+CL0106,2024-04-25,Hurto Confirmado,Auto-reconexión,791.71,Inspector_4
+CL0109,2024-02-19,Normal,N/A,0.0,Inspector_5
+CL0111,2024-05-23,Normal,N/A,0.0,Inspector_1
+CL0112,2024-03-08,Anomalía,Bypass,6172.41,Inspector_3
+CL0112,2024-06-16,Falso Positivo,N/A,0.0,Inspector_3
+CL0116,2024-05-11,Normal,N/A,0.0,Inspector_5
+CL0117,2024-04-05,Normal,N/A,0.0,Inspector_1
+CL0119,2024-02-13,Normal,N/A,0.0,Inspector_2
+CL0119,2024-02-14,Anomalía,Bypass,5283.59,Inspector_5
+CL0123,2024-06-08,Normal,N/A,0.0,Inspector_2
+CL0134,2024-03-06,Normal,N/A,0.0,Inspector_5
+CL0138,2024-03-15,Falso Positivo,N/A,0.0,Inspector_4
