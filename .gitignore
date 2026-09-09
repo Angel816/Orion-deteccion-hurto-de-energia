@@ -306,3 +306,20 @@ configuracion/local.json
 # Reportes generados
 reportes/*.html
 reportes/*.pdf
+
+# ============================================================
+# PROYECTO ORION - DATOS (NO SUBIR)
+# ============================================================
+
+# Datos reales (brutos y procesados)
+datos/brutos/
+datos/procesados/
+datos/cola/
+datos/inspeccion/
+datos/retroalimentacion/
+datos/metadatos/
+datos_pasados/
+datos/externos/
+
+# Datos de muestra (SÍ se suben)
+!datos/muestra/
