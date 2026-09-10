@@ -3,7 +3,7 @@
 # PROYECTO ORION - PRUEBAS AUTOMÁTICAS
 # ============================================================
 # Ejecuta las pruebas unitarias y de integración
-# cuando se hace push o pull request
+# cuando se hace push o pull request.
 # ============================================================
 
 name: Orion Tests

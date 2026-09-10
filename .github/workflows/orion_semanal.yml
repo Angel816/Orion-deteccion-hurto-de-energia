@@ -2,11 +2,7 @@
 # ============================================================
 # PROYECTO ORION - REPORTE SEMANAL AUTOMÁTICO
 # ============================================================
-# Genera un reporte semanal con las métricas del sistema:
-#   - Métricas del modelo
-#   - Métricas de negocio
-#   - Estado del bucle cerrado
-#   - Histórico acumulado
+# Genera un reporte semanal con las métricas del sistema.
 #
 # Horario: Lunes 8:00 AM hora Perú (13:00 UTC)
 # ============================================================
