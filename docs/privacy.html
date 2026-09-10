@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Política de Privacidad - Proyecto Orion</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #0e1117 0%, #1a1f2e 100%);
+            color: #fafafa;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 60px 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px 20px;
+            background: linear-gradient(135deg, #1e3a5f, #2c5aa0);
+            border-radius: 15px;
+        }
+        .header h1 {
+            font-size: 2.2em;
+            color: #ffffff;
+            margin-bottom: 10px;
+        }
+        .header p {
+            color: #a0c4ff;
+        }
+        .section {
+            background: #1e1e2e;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border-left: 4px solid #4dabf7;
+        }
+        .section h2 {
+            color: #4dabf7;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        .section p {
+            color: #d0d0d0;
+            margin-bottom: 12px;
+        }
+        .section ul {
+            list-style: none;
+            padding-left: 0;
+            margin-top: 10px;
+        }
+        .section ul li {
+            padding: 6px 0;
+            padding-left: 25px;
+            position: relative;
+            color: #d0d0d0;
+        }
+        .section ul li::before {
+            content: "•";
+            color: #4dabf7;
+            position: absolute;
+            left: 5px;
+            font-weight: bold;
+        }
+        .highlight {
+            background: #2c5aa0;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            color: #ffffff;
+        }
+        .back-btn {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 12px 25px;
+            background: #4dabf7;
+            color: #0e1117;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        .back-btn:hover {
+            background: #3a9be0;
+            transform: translateY(-2px);
+        }
+        .footer {
+            text-align: center;
+            color: #666;
+            margin-top: 40px;
+            padding: 20px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔒 Política de Privacidad</h1>
+            <p>Proyecto Orion - Detección de Hurto de Energía</p>
+        </div>
+
+        <div class="section">
+            <h2>📅 Última actualización</h2>
+            <p>10 de Septiembre de 2026</p>
+        </div>
+
+        <div class="section">
+            <h2>1. Información que recopilamos</h2>
+            <p>
+                El Proyecto Orion solicita permiso para acceder a la API de Google Drive con el 
+                alcance <code>drive.file</code>. Esto permite a la aplicación:
+            </p>
+            <ul>
+                <li>Crear archivos nuevos en tu Google Drive</li>
+                <li>Leer y modificar únicamente los archivos que la aplicación ha creado</li>
+                <li>Almacenar resultados de análisis en una carpeta específica</li>
+            </ul>
+            <div class="highlight">
+                <strong>Importante:</strong> La aplicación NO accede a ningún otro archivo de tu cuenta 
+                de Google Drive que no haya sido creado por ella misma.
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>2. Cómo usamos la información</h2>
+            <p>La aplicación utiliza el acceso a Google Drive exclusivamente para:</p>
+            <ul>
+                <li>Almacenar los archivos de resultados generados por el pipeline de análisis</li>
+                <li>Recuperar datos históricos para mostrar en el dashboard</li>
+                <li>Mantener un historial de ejecuciones del sistema</li>
+            </ul>
+            <p>No compartimos, vendemos ni transferimos esta información a terceros.</p>
+        </div>
+
+        <div class="section">
+            <h2>3. Protección de los datos</h2>
+            <p>
+                Los tokens de acceso se almacenan de forma segura como secretos de GitHub Actions y 
+                se utilizan únicamente para los propósitos descritos en esta política.
+            </p>
+            <ul>
+                <li>Los datos se transmiten mediante conexiones cifradas (HTTPS/TLS)</li>
+                <li>Los tokens de acceso se almacenan como secretos encriptados</li>
+                <li>No almacenamos contraseñas ni credenciales de usuario</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>4. Retención de datos</h2>
+            <p>
+                Los archivos almacenados en Google Drive permanecen bajo tu control. Puedes eliminarlos 
+                en cualquier momento desde tu cuenta de Google Drive.
+            </p>
+        </div>
+
+        <div class="section">
+            <h2>5. Derechos del usuario</h2>
+            <p>Tienes derecho a:</p>
+            <ul>
+                <li>Revocar el acceso de la aplicación a tu Google Drive en cualquier momento</li>
+                <li>Eliminar los archivos creados por la aplicación desde tu Google Drive</li>
+                <li>Solicitar información sobre los datos almacenados</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>6. Contacto</h2>
+            <p>
+                Para cualquier pregunta sobre esta política de privacidad, puedes contactarnos a través 
+                del repositorio de GitHub:
+            </p>
+            <p>
+                <a href="https://github.com/Angel816/Orion-deteccion-hurto-de-energia" style="color: #4dabf7;">
+                    https://github.com/Angel816/Orion-deteccion-hurto-de-energia
+                </a>
+            </p>
+        </div>
+
+        <a href="index.html" class="back-btn">← Volver a la página principal</a>
+
+        <div class="footer">
+            <p>🌌 Orion - Detección de Hurto de Energía | Perú</p>
+            <p>© 2026 - Proyecto de código abierto</p>
+        </div>
+    </div>
+</body>
+</html>

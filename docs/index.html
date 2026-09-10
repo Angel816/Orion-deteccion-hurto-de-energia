@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proyecto Orion - Detección de Hurto de Energía</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #0e1117 0%, #1a1f2e 100%);
+            color: #fafafa;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 60px 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #1e3a5f, #2c5aa0);
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        .header h1 {
+            font-size: 3em;
+            margin-bottom: 15px;
+            color: #ffffff;
+        }
+        .header .subtitle {
+            font-size: 1.2em;
+            color: #a0c4ff;
+        }
+        .section {
+            background: #1e1e2e;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            border-left: 4px solid #4dabf7;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        .section h2 {
+            color: #4dabf7;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+        .section p {
+            color: #d0d0d0;
+            margin-bottom: 15px;
+        }
+        .section ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        .section ul li {
+            padding: 8px 0;
+            padding-left: 25px;
+            position: relative;
+            color: #d0d0d0;
+        }
+        .section ul li::before {
+            content: "✅";
+            position: absolute;
+            left: 0;
+        }
+        .links {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 25px;
+            background: #4dabf7;
+            color: #0e1117;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        .btn:hover {
+            background: #3a9be0;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(77, 171, 247, 0.4);
+        }
+        .btn.secondary {
+            background: transparent;
+            border: 2px solid #4dabf7;
+            color: #4dabf7;
+        }
+        .btn.secondary:hover {
+            background: #4dabf7;
+            color: #0e1117;
+        }
+        .footer {
+            text-align: center;
+            color: #666;
+            margin-top: 50px;
+            padding: 20px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌌 Proyecto Orion</h1>
+            <p class="subtitle">Sistema de Detección de Hurto de Energía</p>
+            <p class="subtitle">De los Datos a la Acción con Closed Loop</p>
+        </div>
+
+        <div class="section">
+            <h2>📋 Propósito</h2>
+            <p>
+                El <strong>Proyecto Orion</strong> es un sistema de código abierto diseñado para ayudar a las 
+                empresas distribuidoras de energía eléctrica a detectar y priorizar posibles casos de 
+                hurto de energía (pérdidas no técnicas). Utiliza modelos de Machine Learning para analizar 
+                patrones de consumo y priorizar inspecciones en campo.
+            </p>
+        </div>
+
+        <div class="section">
+            <h2>🎯 Objetivos</h2>
+            <ul>
+                <li>Detectar suministros con alta probabilidad de hurto (Precisión > 85%)</li>
+                <li>Priorizar inspecciones por impacto económico (Top 100 > 95% acierto)</li>
+                <li>Recuperar energía no registrada (CNR > 80% del estimado)</li>
+                <li>Prevenir reincidencia (Reducción > 30%)</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>🔧 ¿Qué hace la aplicación?</h2>
+            <p>
+                La aplicación se conecta a tu cuenta de Google Drive para almacenar los resultados del 
+                análisis de forma segura. <strong>No accede a ningún otro dato de tu cuenta.</strong>
+            </p>
+            <p>Los permisos solicitados son:</p>
+            <ul>
+                <li>Crear, leer y modificar archivos que la aplicación misma ha creado</li>
+                <li>Almacenar resultados de análisis en una carpeta específica</li>
+                <li>Recuperar datos históricos para el dashboard</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>🔗 Enlaces</h2>
+            <div class="links">
+                <a href="https://github.com/Angel816/Orion-deteccion-hurto-de-energia" class="btn">
+                    📂 Repositorio en GitHub
+                </a>
+                <a href="privacy.html" class="btn secondary">
+                    🔒 Política de Privacidad
+                </a>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>🌌 Orion - Detección de Hurto de Energía | Perú</p>
+            <p>© 2026 - Proyecto de código abierto</p>
+        </div>
+    </div>
+</body>
+</html>
