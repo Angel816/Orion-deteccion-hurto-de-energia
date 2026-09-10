@@ -1,11 +1,14 @@
 # src/inspeccion/validador_resultados.py
 """
 Validación de resultados de inspección
+Zona horaria: Perú (UTC-5)
 """
 
 from typing import Dict, Tuple, List, Any
 from datetime import datetime
 from src.utilidades.registrador import registro
+from src.utilidades.tiempo import iso_peru
+
 
 class ValidadorResultados:
     """
@@ -19,6 +22,7 @@ class ValidadorResultados:
         registro.info("🔍 Validador de resultados inicializado")
     
     def validar(self, resultado: Dict[str, Any]) -> Tuple[bool, str, Dict[str, Any]]:
+        """Valida un resultado de inspección"""
         limpio = resultado.copy()
         
         requeridos = ['id_cliente', 'resultado']
@@ -40,12 +44,13 @@ class ValidadorResultados:
                 return False, "CNR estimado requerido", {}
         
         limpio = self._limpiar_resultado(limpio)
-        limpio['fecha_validacion'] = datetime.now().isoformat()
+        limpio['fecha_validacion'] = iso_peru()  # ← HORA PERÚ
         limpio['validado'] = True
         
         return True, "Válido", limpio
     
     def validar_lote(self, resultados: List[Dict]) -> Tuple[List[Dict], List[Dict]]:
+        """Valida múltiples resultados"""
         validos = []
         invalidos = []
         
@@ -60,13 +65,18 @@ class ValidadorResultados:
         return validos, invalidos
     
     def _limpiar_resultado(self, resultado: Dict) -> Dict:
+        """Limpia y estandariza un resultado"""
         limpio = resultado.copy()
         
         if 'fecha_inspeccion' in limpio:
             try:
-                limpio['fecha_inspeccion'] = datetime.fromisoformat(limpio['fecha_inspeccion']).isoformat()
+                # Si viene como string, normalizar a ISO
+                limpio['fecha_inspeccion'] = datetime.fromisoformat(
+                    str(limpio['fecha_inspeccion'])
+                ).isoformat()
             except:
-                limpio['fecha_inspeccion'] = datetime.now().isoformat()
+                # Si falla, usar hora Perú actual
+                limpio['fecha_inspeccion'] = iso_peru()
         
         for campo in ['resultado', 'tipo_irregularidad', 'inspector']:
             if campo in limpio and limpio[campo]:

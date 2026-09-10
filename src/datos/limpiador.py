@@ -1,11 +1,15 @@
 # src/datos/limpiador.py
 """
 Limpieza automática de datos para Orion
+Zona horaria: Perú (UTC-5)
 """
 
 import pandas as pd
-from typing import Dict
+import numpy as np
+from typing import Dict, Any
 from src.utilidades.registrador import registro
+from src.utilidades.tiempo import ahora_peru
+
 
 class LimpiadorDatos:
     """
@@ -22,6 +26,7 @@ class LimpiadorDatos:
         registro.info("🧹 Limpiador de datos inicializado")
     
     def limpiar_consumo(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Limpia datos de consumo"""
         registro.info("🧹 Limpiando datos de consumo...")
         df_limpio = df.copy()
         n_registros = len(df_limpio)
@@ -68,6 +73,7 @@ class LimpiadorDatos:
         return df_limpio
     
     def limpiar_alarmas(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Limpia datos de alarmas"""
         registro.info("🧹 Limpiando datos de alarmas...")
         df_limpio = df.copy()
         
@@ -104,6 +110,7 @@ class LimpiadorDatos:
         return df_limpio
     
     def limpiar_clientes(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Limpia datos de clientes"""
         registro.info("🧹 Limpiando datos de clientes...")
         df_limpio = df.copy()
         
@@ -131,6 +138,7 @@ class LimpiadorDatos:
         return df_limpio
     
     def limpiar_facturacion(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Limpia datos de facturación"""
         registro.info("🧹 Limpiando datos de facturación...")
         df_limpio = df.copy()
         
@@ -157,7 +165,7 @@ class LimpiadorDatos:
         if 'fecha_vencimiento' in df_limpio.columns:
             try:
                 df_limpio['fecha_vencimiento'] = pd.to_datetime(df_limpio['fecha_vencimiento'])
-                hoy = pd.Timestamp.now()
+                hoy = ahora_peru().replace(tzinfo=None)  # ← HORA PERÚ
                 df_limpio['dias_mora'] = (hoy - df_limpio['fecha_vencimiento']).dt.days
                 df_limpio.loc[df_limpio['dias_mora'] < 0, 'dias_mora'] = 0
             except:
@@ -174,6 +182,7 @@ class LimpiadorDatos:
         return df_limpio
     
     def limpiar_todo(self, df: pd.DataFrame, tipo: str) -> pd.DataFrame:
+        """Limpia datos según el tipo especificado"""
         metodos = {
             'consumo': self.limpiar_consumo,
             'alarmas': self.limpiar_alarmas,
@@ -187,3 +196,12 @@ class LimpiadorDatos:
             return df
         
         return metodo(df)
+    
+    def limpiar_lote(self, datos: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
+        """Limpia múltiples conjuntos de datos"""
+        resultado = {}
+        for tipo, df in datos.items():
+            resultado[tipo] = self.limpiar_todo(df, tipo)
+        
+        registro.info(f"✅ {len(resultado)} conjuntos de datos limpiados")
+        return resultado

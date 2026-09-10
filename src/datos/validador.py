@@ -1,11 +1,15 @@
 # src/datos/validador.py
 """
 Sistema de validación de calidad de datos
+Zona horaria: Perú (UTC-5)
 """
 
 import pandas as pd
-from typing import Dict
+import numpy as np
+from typing import Dict, List, Any
 from src.utilidades.registrador import registro
+from src.utilidades.tiempo import iso_peru
+
 
 class ValidadorDatos:
     """
@@ -38,9 +42,11 @@ class ValidadorDatos:
                 'umbral_nulos': 0.05
             }
         }
+        
         registro.info("🔍 Validador de datos inicializado")
     
-    def validar(self, df: pd.DataFrame, conjunto: str) -> Dict:
+    def validar(self, df: pd.DataFrame, conjunto: str) -> Dict[str, Any]:
+        """Valida un DataFrame contra el esquema correspondiente"""
         esquema = self.esquemas.get(conjunto, {})
         errores = []
         advertencias = []
@@ -54,7 +60,8 @@ class ValidadorDatos:
                 'estado': 'rechazado',
                 'errores': errores,
                 'advertencias': advertencias,
-                'n_filas': len(df)
+                'n_filas': len(df),
+                'timestamp': iso_peru()  # ← HORA PERÚ
             }
         
         for col in esquema.get('numericas', []):
@@ -94,10 +101,12 @@ class ValidadorDatos:
             'estado': estado,
             'errores': errores,
             'advertencias': advertencias,
-            'n_filas': len(df)
+            'n_filas': len(df),
+            'timestamp': iso_peru()  # ← HORA PERÚ
         }
     
-    def generar_reporte_calidad(self, df: pd.DataFrame, conjunto: str) -> Dict:
+    def generar_reporte_calidad(self, df: pd.DataFrame, conjunto: str) -> Dict[str, Any]:
+        """Genera un reporte completo de calidad de datos"""
         validacion = self.validar(df, conjunto)
         
         estadisticas = {
@@ -109,7 +118,7 @@ class ValidadorDatos:
         
         return {
             'conjunto': conjunto,
-            'timestamp': pd.Timestamp.now().isoformat(),
+            'timestamp': iso_peru(),  # ← HORA PERÚ
             'validacion': validacion,
             'estadisticas': estadisticas
         }

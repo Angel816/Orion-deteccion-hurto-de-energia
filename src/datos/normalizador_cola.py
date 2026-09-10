@@ -10,6 +10,7 @@ import json
 import shutil
 from typing import Dict, Any, Optional, Tuple
 from src.utilidades.registrador import registro
+from src.utilidades.tiempo import ahora_peru, timestamp_peru, iso_peru
 from src.datos.normalizador import NormalizadorDatos
 
 class NormalizadorCola:
@@ -28,13 +29,11 @@ class NormalizadorCola:
         self.datos_pasados_dir = Path('datos_pasados')
         self.metadatos_dir = self.base_dir / 'metadatos'
         
-        # Crear carpetas
         for dir_path in [self.pendientes_dir, self.procesando_dir, 
                         self.errores_dir, self.brutos_dir, 
                         self.datos_pasados_dir, self.metadatos_dir]:
             dir_path.mkdir(parents=True, exist_ok=True)
         
-        # Crear subcarpetas en brutos y datos_pasados
         for sub in ['consumo', 'clientes', 'alarmas', 'facturacion']:
             (self.brutos_dir / sub).mkdir(parents=True, exist_ok=True)
             (self.datos_pasados_dir / sub).mkdir(parents=True, exist_ok=True)
@@ -144,24 +143,24 @@ class NormalizadorCola:
             return None, 'desconocido'
     
     def _guardar_en_brutos(self, df: pd.DataFrame, tipo: str, nombre_base: str) -> Path:
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        nombre = f"{nombre_base}_{timestamp}.parquet"
+        ts = timestamp_peru()  # ← HORA PERÚ
+        nombre = f"{nombre_base}_{ts}.parquet"
         destino = self.brutos_dir / tipo / nombre
         df.to_parquet(destino, index=False)
         return destino
     
     def _guardar_en_historial(self, df: pd.DataFrame, tipo: str, nombre_base: str) -> Path:
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        nombre = f"{nombre_base}_{timestamp}.parquet"
+        ts = timestamp_peru()  # ← HORA PERÚ
+        nombre = f"{nombre_base}_{ts}.parquet"
         destino = self.datos_pasados_dir / tipo / nombre
         df.to_parquet(destino, index=False)
         return destino
     
     def _guardar_reporte(self, reporte: Dict, nombre_base: str, tipo: str):
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        nombre = f"normalizacion_{nombre_base}_{timestamp}.json"
+        ts = timestamp_peru()  # ← HORA PERÚ
+        nombre = f"normalizacion_{nombre_base}_{ts}.json"
         
-        reporte['timestamp'] = datetime.now().isoformat()
+        reporte['timestamp'] = iso_peru()  # ← HORA PERÚ
         reporte['archivo_original'] = nombre_base
         reporte['tipo'] = tipo
         
@@ -176,7 +175,7 @@ class NormalizadorCola:
         error_file = self.errores_dir / f"{archivo.stem}_error.txt"
         with open(error_file, 'w', encoding='utf-8') as f:
             f.write(f"Archivo: {archivo.name}\n")
-            f.write(f"Fecha: {datetime.now().isoformat()}\n")
+            f.write(f"Fecha: {iso_peru()}\n")  # ← HORA PERÚ
             f.write(f"Error: {motivo}\n")
     
     def agregar_a_cola(self, ruta_archivo: Path) -> bool:
@@ -187,8 +186,8 @@ class NormalizadorCola:
         destino = self.pendientes_dir / ruta_archivo.name
         
         if destino.exists():
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            nuevo_nombre = f"{ruta_archivo.stem}_{timestamp}{ruta_archivo.suffix}"
+            ts = timestamp_peru()  # ← HORA PERÚ
+            nuevo_nombre = f"{ruta_archivo.stem}_{ts}{ruta_archivo.suffix}"
             destino = self.pendientes_dir / nuevo_nombre
         
         shutil.copy2(ruta_archivo, destino)

@@ -1,6 +1,7 @@
 # src/inspeccion/gestor_cola.py
 """
 Gestión de cola de inspección con persistencia local
+Zona horaria: Perú (UTC-5)
 """
 
 import json
@@ -10,6 +11,8 @@ from datetime import datetime
 from typing import List, Dict, Any
 from src.utilidades.registrador import registro
 from src.utilidades.configuracion import configuracion
+from src.utilidades.tiempo import ahora_peru, iso_peru
+
 
 class GestorCola:
     """
@@ -32,27 +35,31 @@ class GestorCola:
     
     def agregar(self, id_cliente: str, inspector_id: str, 
                 datos: Dict[str, Any]) -> str:
+        """Agrega un item a la cola"""
         item_id = str(uuid.uuid4())
+        fecha_actual = iso_peru()  # ← HORA PERÚ
+        
         item = {
             'id': item_id,
             'id_cliente': id_cliente,
             'inspector_id': inspector_id,
             'datos': datos,
             'estado': 'pendiente',
-            'creado_en': datetime.now().isoformat(),
-            'actualizado_en': datetime.now().isoformat(),
+            'creado_en': fecha_actual,
+            'actualizado_en': fecha_actual,
             'intentos': 0,
             'error': None
         }
         
         archivo = self.directorios['pendientes'] / f"{item_id}.json"
         with open(archivo, 'w', encoding='utf-8') as f:
-            json.dump(item, f, indent=2, default=str)
+            json.dump(item, f, indent=2, default=str, ensure_ascii=False)
         
         registro.info(f"📥 Item agregado a la cola: {item_id}")
         return item_id
     
     def obtener_pendientes(self, limite: int = 100) -> List[Dict]:
+        """Obtiene items pendientes"""
         items = []
         archivos = sorted(self.directorios['pendientes'].glob('*.json'))[:limite]
         
@@ -66,6 +73,7 @@ class GestorCola:
         return items
     
     def obtener_fallidos(self, limite: int = 100) -> List[Dict]:
+        """Obtiene items fallidos"""
         items = []
         archivos = sorted(self.directorios['fallidos'].glob('*.json'))[:limite]
         
@@ -79,6 +87,7 @@ class GestorCola:
         return items
     
     def mover_a_procesando(self, item_id: str) -> bool:
+        """Mueve un item a procesando"""
         origen = self.directorios['pendientes'] / f"{item_id}.json"
         if not origen.exists():
             origen = self.directorios['fallidos'] / f"{item_id}.json"
@@ -91,11 +100,11 @@ class GestorCola:
                 item = json.load(f)
             
             item['estado'] = 'procesando'
-            item['actualizado_en'] = datetime.now().isoformat()
+            item['actualizado_en'] = iso_peru()  # ← HORA PERÚ
             
             destino = self.directorios['procesando'] / f"{item_id}.json"
             with open(destino, 'w', encoding='utf-8') as f:
-                json.dump(item, f, indent=2, default=str)
+                json.dump(item, f, indent=2, default=str, ensure_ascii=False)
             
             origen.unlink()
             return True
@@ -104,6 +113,7 @@ class GestorCola:
             return False
     
     def marcar_completado(self, item_id: str) -> bool:
+        """Marca un item como completado"""
         origen = self.directorios['procesando'] / f"{item_id}.json"
         if not origen.exists():
             registro.warning(f"⚠️ Item {item_id} no encontrado")
@@ -114,11 +124,11 @@ class GestorCola:
                 item = json.load(f)
             
             item['estado'] = 'completado'
-            item['actualizado_en'] = datetime.now().isoformat()
+            item['actualizado_en'] = iso_peru()  # ← HORA PERÚ
             
             destino = self.directorios['completados'] / f"{item_id}.json"
             with open(destino, 'w', encoding='utf-8') as f:
-                json.dump(item, f, indent=2, default=str)
+                json.dump(item, f, indent=2, default=str, ensure_ascii=False)
             
             origen.unlink()
             registro.info(f"✅ Item {item_id} completado")
@@ -128,6 +138,7 @@ class GestorCola:
             return False
     
     def marcar_fallido(self, item_id: str, error: str) -> bool:
+        """Marca un item como fallido"""
         origen = None
         for dir_path in self.directorios.values():
             test = dir_path / f"{item_id}.json"
@@ -146,11 +157,11 @@ class GestorCola:
             item['estado'] = 'fallido'
             item['intentos'] = item.get('intentos', 0) + 1
             item['error'] = error
-            item['actualizado_en'] = datetime.now().isoformat()
+            item['actualizado_en'] = iso_peru()  # ← HORA PERÚ
             
             destino = self.directorios['fallidos'] / f"{item_id}.json"
             with open(destino, 'w', encoding='utf-8') as f:
-                json.dump(item, f, indent=2, default=str)
+                json.dump(item, f, indent=2, default=str, ensure_ascii=False)
             
             origen.unlink()
             registro.warning(f"⚠️ Item {item_id} marcado como fallido")
@@ -160,6 +171,7 @@ class GestorCola:
             return False
     
     def reintentar_fallidos(self, max_intentos: int = 3) -> List[str]:
+        """Reintenta items fallidos"""
         items = self.obtener_fallidos()
         reintentados = []
         
@@ -170,11 +182,11 @@ class GestorCola:
             
             origen = self.directorios['fallidos'] / f"{item['id']}.json"
             item['estado'] = 'pendiente'
-            item['actualizado_en'] = datetime.now().isoformat()
+            item['actualizado_en'] = iso_peru()  # ← HORA PERÚ
             
             destino = self.directorios['pendientes'] / f"{item['id']}.json"
             with open(destino, 'w', encoding='utf-8') as f:
-                json.dump(item, f, indent=2, default=str)
+                json.dump(item, f, indent=2, default=str, ensure_ascii=False)
             
             origen.unlink()
             reintentados.append(item['id'])
@@ -183,6 +195,7 @@ class GestorCola:
         return reintentados
     
     def obtener_estadisticas(self) -> Dict[str, int]:
+        """Retorna estadísticas de la cola"""
         return {
             'pendientes': len(list(self.directorios['pendientes'].glob('*.json'))),
             'procesando': len(list(self.directorios['procesando'].glob('*.json'))),
@@ -191,6 +204,7 @@ class GestorCola:
         }
     
     def limpiar_completados(self, dias: int = 30) -> int:
+        """Limpia items completados antiguos"""
         import time
         corte = time.time() - (dias * 24 * 60 * 60)
         eliminados = 0

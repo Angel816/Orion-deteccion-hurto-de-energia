@@ -1,7 +1,7 @@
 # scripts/limpiar_sistema.py
 """
 Limpia completamente el sistema Orion
-Elimina datos procesados, modelos, logs, metadatos y colas de inspección
+Zona horaria: Perú (UTC-5)
 """
 
 import shutil
@@ -10,6 +10,8 @@ import sys
 sys.path.append(str(Path(__file__).parent.parent))
 
 from src.utilidades.registrador import registro
+from src.utilidades.tiempo import ahora_peru
+
 
 def limpiar_sistema():
     """
@@ -17,6 +19,7 @@ def limpiar_sistema():
     """
     print("=" * 70)
     print("🧹 LIMPIANDO SISTEMA ORION")
+    print(f"🕐 Hora Perú: {ahora_peru().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 70)
     
     # ============================================================
@@ -38,7 +41,7 @@ def limpiar_sistema():
         print(f"   ℹ️ {procesados} no existe")
     
     # ============================================================
-    # 2. METADATOS DE INGESTA (NUEVO)
+    # 2. METADATOS DE INGESTA
     # ============================================================
     print("\n📂 Limpiando metadatos de ingesta...")
     
@@ -46,8 +49,6 @@ def limpiar_sistema():
     if metadatos_ingesta.exists():
         metadatos_ingesta.unlink()
         print(f"   ✅ {metadatos_ingesta} eliminado")
-    else:
-        print(f"   ℹ️ {metadatos_ingesta} no existe")
     
     metadatos_dir = Path('datos/metadatos')
     if metadatos_dir.exists():
@@ -59,8 +60,6 @@ def limpiar_sistema():
             except:
                 pass
         print(f"   ✅ {metadatos_dir} limpiado ({eliminados} archivos)")
-    else:
-        print(f"   ℹ️ {metadatos_dir} no existe")
     
     # ============================================================
     # 3. DATOS DE INSPECCIÓN (cola)
@@ -85,8 +84,6 @@ def limpiar_sistema():
                 except:
                     pass
             print(f"   ✅ {dir_path} limpiado ({eliminados} archivos)")
-        else:
-            print(f"   ℹ️ {dir_path} no existe")
     
     # ============================================================
     # 4. REGISTROS DE INSPECCIÓN
@@ -103,11 +100,9 @@ def limpiar_sistema():
             except:
                 pass
         print(f"   ✅ {registros} limpiado ({eliminados} archivos)")
-    else:
-        print(f"   ℹ️ {registros} no existe")
     
     # ============================================================
-    # 5. RETROALIMENTACIÓN (inspecciones y entrenamiento)
+    # 5. RETROALIMENTACIÓN
     # ============================================================
     print("\n📂 Limpiando retroalimentación...")
     
@@ -127,39 +122,23 @@ def limpiar_sistema():
                 except:
                     pass
             print(f"   ✅ {dir_path} limpiado ({eliminados} archivos)")
-        else:
-            print(f"   ℹ️ {dir_path} no existe")
     
     # ============================================================
     # 6. MODELOS ENTRENADOS
     # ============================================================
     print("\n📂 Limpiando modelos...")
     
-    modelos = Path('modelos/actual')
-    if modelos.exists():
-        eliminados = 0
-        for archivo in modelos.glob('*'):
-            try:
-                archivo.unlink()
-                eliminados += 1
-            except:
-                pass
-        print(f"   ✅ {modelos} limpiado ({eliminados} archivos)")
-    else:
-        print(f"   ℹ️ {modelos} no existe")
-    
-    modelos_hist = Path('modelos/historico')
-    if modelos_hist.exists():
-        eliminados = 0
-        for archivo in modelos_hist.glob('*'):
-            try:
-                archivo.unlink()
-                eliminados += 1
-            except:
-                pass
-        print(f"   ✅ {modelos_hist} limpiado ({eliminados} archivos)")
-    else:
-        print(f"   ℹ️ {modelos_hist} no existe")
+    for modelos_dir in ['modelos/actual', 'modelos/historico']:
+        path = Path(modelos_dir)
+        if path.exists():
+            eliminados = 0
+            for archivo in path.glob('*'):
+                try:
+                    archivo.unlink()
+                    eliminados += 1
+                except:
+                    pass
+            print(f"   ✅ {modelos_dir} limpiado ({eliminados} archivos)")
     
     # ============================================================
     # 7. REPORTES
@@ -177,8 +156,6 @@ def limpiar_sistema():
                 except:
                     pass
         print(f"   ✅ {reportes} limpiado ({eliminados} archivos)")
-    else:
-        print(f"   ℹ️ {reportes} no existe")
     
     # ============================================================
     # 8. LOGS
@@ -195,11 +172,9 @@ def limpiar_sistema():
             except:
                 pass
         print(f"   ✅ {logs} limpiado ({eliminados} archivos)")
-    else:
-        print(f"   ℹ️ {logs} no existe")
     
     # ============================================================
-    # 9. DATOS BRUTOS (opcional - preguntar)
+    # 9. DATOS BRUTOS (opcional)
     # ============================================================
     print("\n📂 ¿Eliminar datos brutos? (s/n)")
     respuesta = input("> ").lower().strip()
@@ -214,13 +189,7 @@ def limpiar_sistema():
                             archivo.unlink()
                         except:
                             pass
-                    try:
-                        conjunto.rmdir()
-                    except:
-                        pass
             print(f"   ✅ {brutos} limpiado")
-        else:
-            print(f"   ℹ️ {brutos} no existe")
     else:
         print("   ℹ️ Datos brutos conservados")
     
@@ -229,6 +198,7 @@ def limpiar_sistema():
     # ============================================================
     print("\n" + "=" * 70)
     print("✅ SISTEMA LIMPIADO COMPLETAMENTE")
+    print(f"🕐 Finalizado: {ahora_peru().strftime('%Y-%m-%d %H:%M:%S')} (Perú)")
     print("=" * 70)
     
     print("\n📋 RESUMEN DE LIMPIEZA:")
@@ -247,6 +217,7 @@ def limpiar_sistema():
         print(f"   📂 datos/brutos/             ✅")
     
     print("\n🚀 El sistema está limpio y listo para empezar de nuevo.")
+
 
 if __name__ == "__main__":
     limpiar_sistema()

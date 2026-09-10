@@ -1,19 +1,22 @@
 # src/tuberias/bucle_cerrado.py
 """
 Bucle Cerrado (Closed Loop) - Mejora continua del modelo
+Zona horaria: Perú (UTC-5)
 """
 
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import joblib
 from src.utilidades.registrador import registro
 from src.utilidades.configuracion import configuracion
+from src.utilidades.tiempo import ahora_peru, iso_peru
 from src.modelos.isolation_forest import BosqueAislamiento
 from src.modelos.random_forest import BosqueAleatorio
 from src.modelos.ensemble import Conjunto
+
 
 class BucleCerrado:
     """
@@ -21,9 +24,13 @@ class BucleCerrado:
     """
     
     def __init__(self):
-        self.ruta_entrenamiento = Path(configuracion.obtener('datos.ruta_retroalimentacion', 'datos/retroalimentacion/entrenamiento'))
+        self.ruta_entrenamiento = Path(configuracion.obtener(
+            'datos.ruta_retroalimentacion', 'datos/retroalimentacion/entrenamiento'
+        ))
         self.ruta_modelos = Path(configuracion.obtener('modelos.ruta', 'modelos/actual'))
-        self.ruta_historico = Path(configuracion.obtener('modelos.ruta_historico', 'modelos/historico'))
+        self.ruta_historico = Path(configuracion.obtener(
+            'modelos.ruta_historico', 'modelos/historico'
+        ))
         
         self.ruta_entrenamiento.mkdir(parents=True, exist_ok=True)
         self.ruta_modelos.mkdir(parents=True, exist_ok=True)
@@ -37,6 +44,7 @@ class BucleCerrado:
         registro.info("🔄 Bucle Cerrado inicializado")
     
     def _cargar_estado(self) -> dict:
+        """Carga el estado del bucle cerrado"""
         archivo_estado = self.ruta_entrenamiento / 'estado_bucle.json'
         if archivo_estado.exists():
             with open(archivo_estado, 'r', encoding='utf-8') as f:
@@ -49,11 +57,13 @@ class BucleCerrado:
         }
     
     def _guardar_estado(self):
+        """Guarda el estado del bucle cerrado"""
         archivo_estado = self.ruta_entrenamiento / 'estado_bucle.json'
         with open(archivo_estado, 'w', encoding='utf-8') as f:
-            json.dump(self.estado, f, indent=2, default=str)
+            json.dump(self.estado, f, indent=2, default=str, ensure_ascii=False)
     
     def recolectar_feedback(self, resultados: pd.DataFrame) -> dict:
+        """Recolecta y almacena resultados de inspección"""
         registro.info("📥 Recolectando feedback de inspecciones...")
         
         requeridos = ['id_cliente', 'resultado', 'label']
@@ -61,7 +71,7 @@ class BucleCerrado:
             if col not in resultados.columns:
                 raise ValueError(f"Columna requerida faltante: {col}")
         
-        resultados['fecha_procesamiento'] = datetime.now()
+        resultados['fecha_procesamiento'] = ahora_peru()  # ← HORA PERÚ
         
         archivo_entrenamiento = self.ruta_entrenamiento / 'datos_etiquetados.parquet'
         if archivo_entrenamiento.exists():
@@ -83,6 +93,7 @@ class BucleCerrado:
         return stats
     
     def evaluar_modelo(self) -> dict:
+        """Evalúa el modelo actual con los datos etiquetados"""
         registro.info("📊 Evaluando modelo actual...")
         
         archivo_entrenamiento = self.ruta_entrenamiento / 'datos_etiquetados.parquet'
@@ -95,7 +106,8 @@ class BucleCerrado:
             return {'error': 'No hay modelo actual'}
         
         modelo = joblib.load(archivo_modelo)
-        columnas_excluir = ['id_cliente', 'resultado', 'label', 'fecha_inspeccion', 'fecha_procesamiento']
+        columnas_excluir = ['id_cliente', 'resultado', 'label', 
+                           'fecha_inspeccion', 'fecha_procesamiento']
         columnas_features = [col for col in df.columns if col not in columnas_excluir]
         X = df[columnas_features].values
         y = df['label'].values
@@ -119,6 +131,7 @@ class BucleCerrado:
             return {'error': str(e)}
     
     def debe_reentrenar(self, evaluacion: dict) -> bool:
+        """Decide si es necesario reentrenar el modelo"""
         registro.info("🤔 Evaluando necesidad de reentrenamiento...")
         
         if 'error' in evaluacion:
@@ -130,15 +143,17 @@ class BucleCerrado:
         
         df = pd.read_parquet(archivo_entrenamiento)
         ultima_fecha = self.estado.get('ultimo_reentrenamiento')
-        if ultima_fecha:
-            ultima_fecha = datetime.fromisoformat(ultima_fecha)
-            nuevas = len(df[df['fecha_procesamiento'] > ultima_fecha])
-        else:
-            nuevas = len(df)
         
         if ultima_fecha:
-            dias_desde = (datetime.now() - ultima_fecha).days
+            try:
+                ultima_fecha_dt = datetime.fromisoformat(ultima_fecha)
+                nuevas = len(df[df['fecha_procesamiento'] > ultima_fecha_dt])
+                dias_desde = (ahora_peru().replace(tzinfo=None) - ultima_fecha_dt.replace(tzinfo=None)).days
+            except:
+                nuevas = len(df)
+                dias_desde = 999
         else:
+            nuevas = len(df)
             dias_desde = 999
         
         decision = {
@@ -163,6 +178,7 @@ class BucleCerrado:
         return decision['debe_reentrenar']
     
     def reentrenar_modelo(self) -> dict:
+        """Reentrena el modelo con todos los datos disponibles"""
         registro.info("🧠 Iniciando reentrenamiento del modelo...")
         
         archivo_entrenamiento = self.ruta_entrenamiento / 'datos_etiquetados.parquet'
@@ -172,7 +188,8 @@ class BucleCerrado:
         df = pd.read_parquet(archivo_entrenamiento)
         registro.info(f"📊 Datos totales: {len(df)} registros")
         
-        columnas_excluir = ['id_cliente', 'resultado', 'label', 'fecha_inspeccion', 'fecha_procesamiento']
+        columnas_excluir = ['id_cliente', 'resultado', 'label', 
+                           'fecha_inspeccion', 'fecha_procesamiento']
         columnas_features = [col for col in df.columns if col not in columnas_excluir]
         X = df[columnas_features].values
         y = df['label'].values
@@ -194,11 +211,11 @@ class BucleCerrado:
         detector.guardar(str(archivo_modelo))
         
         version = self._incrementar_version()
-        self.estado['ultimo_reentrenamiento'] = datetime.now().isoformat()
+        self.estado['ultimo_reentrenamiento'] = iso_peru()  # ← HORA PERÚ
         self.estado['version_actual'] = version
         self.estado['metricas_historial'].append({
             'version': version,
-            'fecha': datetime.now().isoformat(),
+            'fecha': iso_peru(),  # ← HORA PERÚ
             'metricas': detector.metricas,
             'n_muestras': len(df),
             'tipo_modelo': tipo_modelo
@@ -214,11 +231,13 @@ class BucleCerrado:
         }
     
     def _incrementar_version(self) -> str:
+        """Incrementa la versión del modelo"""
         actual = self.estado.get('version_actual', 'v0.0.0')
         mayor, menor, parche = actual[1:].split('.')
         return f'v{mayor}.{menor}.{int(parche) + 1}'
     
     def ejecutar_ciclo_completo(self) -> dict:
+        """Ejecuta el ciclo completo"""
         registro.info("🔄 Ejecutando ciclo completo...")
         evaluacion = self.evaluar_modelo()
         
@@ -232,6 +251,7 @@ class BucleCerrado:
         return {'accion': 'omitido', 'evaluacion': evaluacion}
     
     def obtener_estado(self) -> dict:
+        """Retorna el estado actual del bucle cerrado"""
         archivo_entrenamiento = self.ruta_entrenamiento / 'datos_etiquetados.parquet'
         if archivo_entrenamiento.exists():
             df = pd.read_parquet(archivo_entrenamiento)

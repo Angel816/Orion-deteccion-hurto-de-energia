@@ -1,6 +1,7 @@
 # scripts/procesar_cola_datos.py
 """
 Procesa automáticamente los archivos en la cola de datos
+Zona horaria: Perú (UTC-5)
 """
 
 import sys
@@ -9,6 +10,8 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 import argparse
 from src.datos.normalizador_cola import NormalizadorCola
+from src.utilidades.tiempo import ahora_peru
+
 
 def main():
     parser = argparse.ArgumentParser(description='Procesar cola de datos Orion')
@@ -30,6 +33,7 @@ def main():
         print(f"🔄 Procesando:  {estado['procesando']}")
         print(f"❌ Errores:     {estado['errores']}")
         print("=" * 40)
+        print(f"🕐 Hora Perú: {ahora_peru().strftime('%Y-%m-%d %H:%M:%S')}")
     
     elif args.historial:
         historial = normalizador.obtener_estado_historial()
@@ -38,17 +42,22 @@ def main():
         for tipo, cantidad in historial.items():
             print(f"   {tipo}: {cantidad} archivos")
         print("=" * 40)
+        print(f"🕐 Hora Perú: {ahora_peru().strftime('%Y-%m-%d %H:%M:%S')}")
     
     elif args.agregar:
         archivo = Path(args.agregar)
         if normalizador.agregar_a_cola(archivo):
             print(f"✅ Archivo agregado a la cola: {archivo.name}")
+            print(f"🕐 Hora Perú: {ahora_peru().strftime('%Y-%m-%d %H:%M:%S')}")
         else:
             print(f"❌ Error al agregar archivo: {archivo.name}")
     
     elif args.procesar:
-        print("🔄 Procesando cola de datos...")
+        print(f"🔄 Procesando cola de datos...")
+        print(f"🕐 Hora Perú: {ahora_peru().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        
         resultados = normalizador.procesar_cola()
+        
         print("\n📊 RESULTADOS")
         print("=" * 40)
         print(f"📂 Total:        {resultados['total']}")
@@ -61,14 +70,17 @@ def main():
                 print(f"   ✅ {detalle['archivo']} → {detalle['tipo']} ({detalle['registros']} registros)")
             else:
                 print(f"   ❌ {detalle['archivo']}: {detalle['mensaje']}")
+        
+        print(f"\n🕐 Finalizado: {ahora_peru().strftime('%Y-%m-%d %H:%M:%S')} (Perú)")
     
     elif args.limpiar:
         normalizador.limpiar_procesando()
-        print("🗑️ Carpeta de procesando limpiada")
+        print(f"🗑️ Carpeta de procesando limpiada")
+        print(f"🕐 Hora Perú: {ahora_peru().strftime('%Y-%m-%d %H:%M:%S')}")
     
     else:
-        print("""
-📋 COMANDOS DISPONIBLES:
+        print(f"""
+📋 COMANDOS DISPONIBLES (Hora Perú: {ahora_peru().strftime('%Y-%m-%d %H:%M:%S')})
   --estado          Ver estado de la cola
   --historial       Ver estado del historial
   --agregar ARCHIVO Agregar archivo a la cola
@@ -82,6 +94,7 @@ Ejemplos:
   python scripts/procesar_cola_datos.py --procesar
   python scripts/procesar_cola_datos.py --limpiar
         """)
+
 
 if __name__ == "__main__":
     main()

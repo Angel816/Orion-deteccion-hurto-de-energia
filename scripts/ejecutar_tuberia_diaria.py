@@ -1,7 +1,7 @@
 # scripts/ejecutar_tuberia_diaria.py
 """
 Ejecuta la tubería diaria de Orion - SOLO DATOS DE BRUTOS
-Si faltan datos, detiene el proceso y genera alerta
+Zona horaria: Perú (UTC-5)
 """
 
 import sys
@@ -20,23 +20,18 @@ from src.priorizacion.fase1_simple import PuntuadorSimple
 from src.priorizacion.aprendizaje_activo import AprendizajeActivo
 from src.utilidades.registrador import registro
 from src.utilidades.configuracion import configuracion
+from src.utilidades.tiempo import ahora_peru, timestamp_peru, iso_peru
 
 # ============================================================
 # CONFIGURACIÓN DE ALERTAS
 # ============================================================
 
 def enviar_alerta(mensaje: str, nivel: str = "error"):
-    """
-    Envía una alerta por email (placeholder)
-    """
+    """Envía una alerta por email (placeholder)"""
     registro.error(f"🚨 ALERTA [{nivel.upper()}]: {mensaje}")
-    # Aquí se puede implementar envío de email, Slack, etc.
-    # Por ahora solo se registra en el log
 
 def verificar_datos_requeridos(datos: dict, requeridos: list) -> bool:
-    """
-    Verifica que todos los datasets requeridos estén disponibles
-    """
+    """Verifica que todos los datasets requeridos estén disponibles"""
     faltantes = []
     for req in requeridos:
         if req not in datos or datos[req].empty:
@@ -50,9 +45,7 @@ def verificar_datos_requeridos(datos: dict, requeridos: list) -> bool:
     return True
 
 def verificar_calidad_minima(datos: dict, umbrales: dict) -> bool:
-    """
-    Verifica que los datasets cumplan con umbrales mínimos de calidad
-    """
+    """Verifica que los datasets cumplan con umbrales mínimos de calidad"""
     problemas = []
     
     for nombre, df in datos.items():
@@ -79,10 +72,7 @@ def verificar_calidad_minima(datos: dict, umbrales: dict) -> bool:
 
 def main():
     registro.info("🚀 Iniciando tubería diaria de Orion...")
-    
-    # ============================================================
-    # 1. DEFINIR REQUISITOS DE DATOS
-    # ============================================================
+    registro.info(f"🕐 Hora Perú: {ahora_peru().strftime('%Y-%m-%d %H:%M:%S')}")
     
     REQUERIDOS = ['consumo', 'clientes']
     OPCIONALES = ['alarmas', 'facturacion']
@@ -97,18 +87,14 @@ def main():
             'columnas_requeridas': ['id_cliente', 'tipo_cliente']
         },
         'alarmas': {
-            'min_registros': 0,  # Opcional
+            'min_registros': 0,
             'columnas_requeridas': ['id_cliente', 'fecha', 'tipo_alarma']
         },
         'facturacion': {
-            'min_registros': 0,  # Opcional
+            'min_registros': 0,
             'columnas_requeridas': ['id_cliente', 'fecha_emision', 'monto_total']
         }
     }
-    
-    # ============================================================
-    # 2. CARGAR DATOS DE BRUTOS
-    # ============================================================
     
     registro.info("📂 Cargando datos desde datos/brutos/...")
     
@@ -121,10 +107,6 @@ def main():
         'facturacion': cargador.cargar_archivos_nuevos('facturacion')
     }
     
-    # ============================================================
-    # 3. VERIFICAR DATOS REQUERIDOS
-    # ============================================================
-    
     if not verificar_datos_requeridos(datos, REQUERIDOS):
         registro.error("❌ Datos requeridos faltantes. Tubería detenida.")
         return
@@ -132,10 +114,6 @@ def main():
     if not verificar_calidad_minima(datos, UMBRALES):
         registro.warning("⚠️ Problemas de calidad detectados. Tubería detenida.")
         return
-    
-    # ============================================================
-    # 4. REGISTRAR ESTADO DE DATOS CARGADOS
-    # ============================================================
     
     registro.info("📊 Estado de datos cargados:")
     for nombre, df in datos.items():
@@ -146,10 +124,6 @@ def main():
                 registro.info(f"   ⚠️ {nombre}: No disponible (opcional)")
             else:
                 registro.error(f"   ❌ {nombre}: No disponible (requerido)")
-    
-    # ============================================================
-    # 5. LIMPIAR DATOS
-    # ============================================================
     
     limpiador = LimpiadorDatos()
     
@@ -164,10 +138,6 @@ def main():
     if not datos['facturacion'].empty:
         facturacion = limpiador.limpiar_facturacion(datos['facturacion'])
     
-    # ============================================================
-    # 6. EXTRAER CARACTERÍSTICAS
-    # ============================================================
-    
     extractor = ExtractorCaracteristicas()
     features = extractor.extraer_todas(consumo, alarmas, facturacion)
     
@@ -178,46 +148,26 @@ def main():
     
     registro.info(f"✅ {len(features)} clientes procesados")
     
-    # ============================================================
-    # 7. PREDECIR
-    # ============================================================
-    
     np.random.seed(42)
     probabilidades = np.random.uniform(0, 1, len(features))
-    
-    # ============================================================
-    # 8. PRIORIZAR
-    # ============================================================
     
     puntuador = PuntuadorSimple()
     puntajes = puntuador.calcular_puntajes(features, probabilidades)
     
-    # ============================================================
-    # 9. APRENDIZAJE ACTIVO
-    # ============================================================
-    
     activo = AprendizajeActivo()
     seleccionados = activo.seleccionar_casos(puntajes, probabilidades, n=min(50, len(puntajes)))
-    
-    # ============================================================
-    # 10. GUARDAR RESULTADOS
-    # ============================================================
     
     processed_dir = Path('datos/procesados')
     processed_dir.mkdir(parents=True, exist_ok=True)
     
-    fecha_actual = datetime.now()
-    timestamp = fecha_actual.strftime('%Y%m%d_%H%M%S')
+    fecha_actual = ahora_peru()
+    timestamp = timestamp_peru()
     
-    # 10a. Guardar con timestamp
     puntajes.to_parquet(processed_dir / f'puntajes_{timestamp}.parquet')
     seleccionados.to_csv(processed_dir / f'inspecciones_priorizadas_{timestamp}.csv', index=False)
     registro.info(f"💾 Guardado: puntajes_{timestamp}.parquet")
     
-    # ============================================================
-    # 10b. ACUMULAR EN HISTÓRICO (CORREGIDO - SIEMPRE CONCATENAR)
-    # ============================================================
-    
+    # ACUMULAR EN HISTÓRICO
     puntajes_con_fecha = puntajes.copy()
     puntajes_con_fecha['fecha_ejecucion'] = fecha_actual
     puntajes_con_fecha['ejecucion_id'] = timestamp
@@ -226,43 +176,30 @@ def main():
     historico_path = processed_dir / 'historico_puntajes.parquet'
     
     if historico_path.exists():
-        # Cargar histórico existente
         historico_existente = pd.read_parquet(historico_path)
         registro.info(f"📊 Histórico existente: {len(historico_existente)} registros")
         
-        # Verificar si ya existen datos con este timestamp (por si acaso)
         if 'ejecucion_id' in historico_existente.columns:
             if timestamp in historico_existente['ejecucion_id'].values:
                 registro.warning(f"⚠️ La ejecución {timestamp} ya existe en el histórico")
-                # Eliminar registros antiguos con este timestamp
                 historico_existente = historico_existente[historico_existente['ejecucion_id'] != timestamp]
-                registro.info(f"   Registros antiguos eliminados: {len(historico_existente)}")
         
-        # CONCATENAR SIEMPRE (nuevos datos + existentes)
         historico_actualizado = pd.concat([historico_existente, puntajes_con_fecha], ignore_index=True)
         registro.info(f"📊 Histórico actualizado: {len(historico_actualizado)} registros (+{len(puntajes_con_fecha)})")
     else:
         historico_actualizado = puntajes_con_fecha
         registro.info(f"📊 Histórico creado: {len(historico_actualizado)} registros")
     
-    # Guardar histórico actualizado
     historico_actualizado.to_parquet(historico_path, index=False)
-    
-    # ============================================================
-    # 10c. GUARDAR ÚLTIMA VERSIÓN
-    # ============================================================
     
     puntajes.to_parquet(processed_dir / 'puntajes_latest.parquet')
     seleccionados.to_csv(processed_dir / 'inspecciones_priorizadas_latest.csv', index=False)
     registro.info(f"💾 Última versión guardada: puntajes_latest.parquet")
     
-    # ============================================================
-    # 10d. GUARDAR ESTADÍSTICAS DE LA EJECUCIÓN
-    # ============================================================
-    
     stats = {
         'timestamp': timestamp,
         'fecha': fecha_actual.isoformat(),
+        'zona_horaria': 'America/Lima',
         'total_suministros': len(puntajes),
         'alta_prioridad': len(puntajes[puntajes['prioridad'] == 'ALTA']),
         'media_prioridad': len(puntajes[puntajes['prioridad'] == 'MEDIA']),
@@ -273,16 +210,12 @@ def main():
     
     stats_path = processed_dir / f'estadisticas_{timestamp}.json'
     with open(stats_path, 'w', encoding='utf-8') as f:
-        json.dump(stats, f, indent=2, default=str)
-    
-    # ============================================================
-    # 11. RESULTADOS
-    # ============================================================
+        json.dump(stats, f, indent=2, default=str, ensure_ascii=False)
     
     registro.info(f"✅ Tubería diaria completada: {len(puntajes)} suministros priorizados")
     registro.info(f"📋 {len(seleccionados)} casos seleccionados para inspección")
     registro.info(f"📊 Histórico acumulado: {len(historico_actualizado)} registros")
-    registro.info(f"📅 Fecha ejecución: {fecha_actual.strftime('%Y-%m-%d %H:%M:%S')}")
+    registro.info(f"📅 Fecha ejecución: {fecha_actual.strftime('%Y-%m-%d %H:%M:%S')} (Perú)")
     if 'id_cliente' in historico_actualizado.columns:
         registro.info(f"📊 Total histórico de suministros: {len(historico_actualizado['id_cliente'].unique())}")
 

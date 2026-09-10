@@ -1,6 +1,7 @@
 # scripts/convertir_muestra_a_parquet.py
 """
-Convierte los datos de muestra de CSV a Parquet con versionado
+Convierte los datos de muestra de CSV a Parquet
+Zona horaria: Perú (UTC-5)
 """
 
 import sys
@@ -8,20 +9,21 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 import pandas as pd
-from datetime import datetime
-import json
 from src.utilidades.registrador import registro
+from src.utilidades.tiempo import ahora_peru, timestamp_peru
+
 
 def main():
     registro.info("🔄 Convirtiendo datos de muestra a Parquet...")
+    registro.info(f"🕐 Hora Perú: {ahora_peru().strftime('%Y-%m-%d %H:%M:%S')}")
     
     muestra_dir = Path('datos/muestra')
     brutos_dir = Path('datos/brutos')
     
-    # Fecha y hora para versión única
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    # Timestamp con hora Perú
+    timestamp = timestamp_peru()
     
-    # 1. Convertir consumo
+    # 1. Consumo
     consumo_path = muestra_dir / 'consumo_muestra.csv'
     if consumo_path.exists():
         df = pd.read_csv(consumo_path)
@@ -32,7 +34,7 @@ def main():
         df.to_parquet(consumo_dir / f'consumo_{timestamp}.parquet')
         registro.info(f"✅ Consumo: {len(df)} registros -> consumo_{timestamp}.parquet")
     
-    # 2. Convertir alarmas
+    # 2. Alarmas
     alarmas_path = muestra_dir / 'alarmas_muestra.csv'
     if alarmas_path.exists():
         df = pd.read_csv(alarmas_path)
@@ -43,7 +45,7 @@ def main():
         df.to_parquet(alarmas_dir / f'alarmas_{timestamp}.parquet')
         registro.info(f"✅ Alarmas: {len(df)} registros -> alarmas_{timestamp}.parquet")
     
-    # 3. Convertir clientes
+    # 3. Clientes
     clientes_path = muestra_dir / 'clientes_muestra.csv'
     if clientes_path.exists():
         df = pd.read_csv(clientes_path)
@@ -53,7 +55,7 @@ def main():
         df.to_parquet(clientes_dir / f'clientes_{timestamp}.parquet')
         registro.info(f"✅ Clientes: {len(df)} registros -> clientes_{timestamp}.parquet")
     
-    # 4. Convertir facturación
+    # 4. Facturación
     facturacion_path = muestra_dir / 'facturacion_muestra.csv'
     if facturacion_path.exists():
         df = pd.read_csv(facturacion_path)
@@ -76,26 +78,9 @@ def main():
         df.to_csv(feedback_dir / f'inspecciones_{timestamp}.csv', index=False)
         registro.info(f"✅ Inspecciones: {len(df)} registros -> inspecciones_{timestamp}.csv")
     
-    # 6. Guardar metadatos de la conversión
-    metadatos = {
-        'timestamp': timestamp,
-        'fecha': datetime.now().isoformat(),
-        'archivos': {
-            'consumo': f'consumo_{timestamp}.parquet',
-            'alarmas': f'alarmas_{timestamp}.parquet',
-            'clientes': f'clientes_{timestamp}.parquet',
-            'facturacion': f'facturacion_{timestamp}.parquet',
-            'inspecciones': f'inspecciones_{timestamp}.csv'
-        }
-    }
-    
-    metadatos_dir = Path('datos/metadatos')
-    metadatos_dir.mkdir(parents=True, exist_ok=True)
-    
-    with open(metadatos_dir / f'conversion_{timestamp}.json', 'w') as f:
-        json.dump(metadatos, f, indent=2)
-    
     registro.info("✅ Conversión completada")
+    registro.info(f"🕐 Finalizado: {ahora_peru().strftime('%Y-%m-%d %H:%M:%S')} (Perú)")
+
 
 if __name__ == "__main__":
     main()

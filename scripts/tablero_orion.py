@@ -1,6 +1,7 @@
 # scripts/tablero_orion.py
 """
-Dashboard de Orion - Monitoreo Continuo con Buscador de Clientes
+Dashboard de Orion - Monitoreo Continuo con Buscador de Clientes y Métricas
+Zona horaria: Perú (UTC-5)
 """
 
 import streamlit as st
@@ -11,6 +12,23 @@ import sys
 from pathlib import Path
 import time
 import subprocess
+import json
+
+# Agregar src al path
+sys.path.append(str(Path(__file__).parent.parent))
+
+from src.utilidades.tiempo import ahora_peru, formatear_fecha, iso_peru
+from src.utilidades.metricas import (
+    MetricasModelo,
+    MetricasNegocio,
+    MetricasSistema,
+    FormateadorMetricas,
+    metricas_sistema
+)
+
+# ============================================================
+# CONFIGURACIÓN DE LA PÁGINA
+# ============================================================
 
 st.set_page_config(
     page_title="🌌 Orion - Monitoreo Continuo",
@@ -20,7 +38,7 @@ st.set_page_config(
 )
 
 # ============================================================
-# FUNCIONES DE CARGA
+# FUNCIONES DE CARGA DE DATOS
 # ============================================================
 
 def cargar_datos():
@@ -35,7 +53,7 @@ def cargar_datos():
         'alta_prioridad_acumulada': 0
     }
     
-    # 1. Cargar histórico
+    # 1. Cargar histórico acumulado
     historico_path = processed_dir / 'historico_puntajes.parquet'
     if historico_path.exists():
         df_historico = pd.read_parquet(historico_path)
@@ -49,9 +67,11 @@ def cargar_datos():
             resultado['ultima_actualizacion'] = df_historico['fecha_ejecucion'].max()
         
         if 'prioridad' in df_historico.columns:
-            resultado['alta_prioridad_acumulada'] = len(df_historico[df_historico['prioridad'] == 'ALTA'])
+            resultado['alta_prioridad_acumulada'] = len(
+                df_historico[df_historico['prioridad'] == 'ALTA']
+            )
     
-    # 2. Cargar última versión
+    # 2. Cargar última ejecución
     latest_path = processed_dir / 'puntajes_latest.parquet'
     if latest_path.exists():
         resultado['ultimos'] = pd.read_parquet(latest_path)
@@ -63,21 +83,71 @@ def cargar_datos():
     
     return resultado
 
+
 def cargar_inspecciones_latest():
+    """Carga la última lista de inspecciones"""
     processed_dir = Path('datos/procesados')
     latest_path = processed_dir / 'inspecciones_priorizadas_latest.csv'
     if latest_path.exists():
         return pd.read_csv(latest_path)
     return None
 
+
+def cargar_inspecciones_historicas():
+    """Carga todas las inspecciones históricas"""
+    feedback_dir = Path('datos/retroalimentacion/inspecciones')
+    if not feedback_dir.exists():
+        return None
+    
+    archivos = list(feedback_dir.glob('*.csv'))
+    if not archivos:
+        return None
+    
+    dfs = []
+    for archivo in archivos:
+        try:
+            df = pd.read_csv(archivo)
+            dfs.append(df)
+        except Exception as e:
+            print(f"Error cargando {archivo}: {e}")
+    
+    if dfs:
+        return pd.concat(dfs, ignore_index=True)
+    return None
+
+
+def cargar_metricas_modelo():
+    """Carga las métricas del modelo actual"""
+    metrics_path = Path('modelos/actual/metrics.json')
+    if metrics_path.exists():
+        with open(metrics_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+
+def cargar_estado_bucle():
+    """Carga el estado del bucle cerrado"""
+    estado_path = Path('datos/retroalimentacion/entrenamiento/estado_bucle.json')
+    if estado_path.exists():
+        with open(estado_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+
 # ============================================================
-# INICIALIZAR SESIÓN
+# INICIALIZAR ESTADO DE SESIÓN
 # ============================================================
 
 if 'datos' not in st.session_state:
     st.session_state.datos = None
 if 'inspecciones' not in st.session_state:
     st.session_state.inspecciones = None
+if 'inspecciones_hist' not in st.session_state:
+    st.session_state.inspecciones_hist = None
+if 'metricas_modelo' not in st.session_state:
+    st.session_state.metricas_modelo = None
+if 'estado_bucle' not in st.session_state:
+    st.session_state.estado_bucle = None
 if 'cliente_buscado' not in st.session_state:
     st.session_state.cliente_buscado = None
 
@@ -92,12 +162,15 @@ auto_refresh = st.sidebar.checkbox("🔄 Actualización automática", value=True
 refresh_interval = st.sidebar.slider("Intervalo (segundos)", 5, 60, 15)
 
 st.sidebar.markdown("---")
-st.sidebar.caption(f"v2.0.0 | {datetime.now().strftime('%H:%M:%S')}")
+st.sidebar.caption(f"v2.0.0 | {ahora_peru().strftime('%H:%M:%S')} (Perú)")
 
 if st.sidebar.button("🔄 Refrescar ahora"):
     st.cache_data.clear()
     st.session_state.datos = None
     st.session_state.inspecciones = None
+    st.session_state.inspecciones_hist = None
+    st.session_state.metricas_modelo = None
+    st.session_state.estado_bucle = None
     st.session_state.cliente_buscado = None
     st.rerun()
 
@@ -108,15 +181,30 @@ if st.sidebar.button("🔄 Refrescar ahora"):
 st.title("🌌 Orion - Monitoreo Continuo")
 st.markdown("### Sistema de Detección y Priorización de Hurto de Energía")
 
+# Cargar todos los datos
 if st.session_state.datos is None:
     st.session_state.datos = cargar_datos()
 
 if st.session_state.inspecciones is None:
     st.session_state.inspecciones = cargar_inspecciones_latest()
 
+if st.session_state.inspecciones_hist is None:
+    st.session_state.inspecciones_hist = cargar_inspecciones_historicas()
+
+if st.session_state.metricas_modelo is None:
+    st.session_state.metricas_modelo = cargar_metricas_modelo()
+
+if st.session_state.estado_bucle is None:
+    st.session_state.estado_bucle = cargar_estado_bucle()
+
+# Asignar variables
 datos = st.session_state.datos
 inspecciones = st.session_state.inspecciones
+inspecciones_hist = st.session_state.inspecciones_hist
+metricas_modelo = st.session_state.metricas_modelo
+estado_bucle = st.session_state.estado_bucle
 
+# Verificar si hay datos
 if datos['ultimos'] is None:
     st.warning("⚠️ No hay datos de puntajes disponibles.")
     st.info("📌 Ejecuta primero la tubería diaria:")
@@ -124,7 +212,11 @@ if datos['ultimos'] is None:
     
     if st.button("🚀 Ejecutar tubería ahora"):
         with st.spinner("Ejecutando tubería..."):
-            result = subprocess.run(["python", "scripts/ejecutar_tuberia_diaria.py"], capture_output=True, text=True)
+            result = subprocess.run(
+                ["python", "scripts/ejecutar_tuberia_diaria.py"],
+                capture_output=True,
+                text=True
+            )
             if result.returncode == 0:
                 st.success("✅ Tubería ejecutada correctamente")
                 st.rerun()
@@ -141,10 +233,12 @@ historico = datos['historico']
 
 if datos['ultima_actualizacion']:
     if hasattr(datos['ultima_actualizacion'], 'strftime'):
-        fecha_str = datos['ultima_actualizacion'].strftime('%Y-%m-%d %H:%M:%S')
+        fecha_str = formatear_fecha(datos['ultima_actualizacion'])
     else:
         fecha_str = str(datos['ultima_actualizacion'])
-    st.markdown(f"### 📊 Última actualización: {fecha_str}")
+    st.markdown(f"### 📊 Última actualización: {fecha_str} (Perú)")
+
+st.markdown(f"🕐 **Hora actual (Perú):** {ahora_peru().strftime('%Y-%m-%d %H:%M:%S')}")
 st.markdown("---")
 
 # ============================================================
@@ -191,7 +285,111 @@ with col3:
     st.metric("📉 Baja Prioridad", baja, delta=f"{baja/len(ultimos_datos)*100:.1f}%")
 
 # ============================================================
-# BUSCADOR DE CLIENTES (NUEVO)
+# MÉTRICAS DEL SISTEMA
+# ============================================================
+
+st.markdown("---")
+st.subheader("📊 Métricas del Sistema")
+
+# Métricas del modelo
+if metricas_modelo:
+    st.markdown("#### 🧠 Métricas del Modelo")
+    
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
+    with col1:
+        accuracy = metricas_modelo.get('accuracy', 0)
+        st.metric("🎯 Accuracy", FormateadorMetricas.formatear_porcentaje(accuracy))
+    
+    with col2:
+        precision = metricas_modelo.get('precision', 0)
+        st.metric("📊 Precision", FormateadorMetricas.formatear_porcentaje(precision))
+    
+    with col3:
+        recall = metricas_modelo.get('recall', 0)
+        st.metric("📈 Recall", FormateadorMetricas.formatear_porcentaje(recall))
+    
+    with col4:
+        f1 = metricas_modelo.get('f1', 0)
+        st.metric("⚡ F1-Score", FormateadorMetricas.formatear_porcentaje(f1))
+    
+    with col5:
+        if 'cv_f1_mean' in metricas_modelo:
+            st.metric("📊 CV F1", FormateadorMetricas.formatear_porcentaje(metricas_modelo['cv_f1_mean']))
+        else:
+            st.metric("📊 CV F1", "N/A")
+
+# Métricas de negocio (desde inspecciones)
+if inspecciones_hist is not None and not inspecciones_hist.empty:
+    st.markdown("#### 💰 Métricas de Negocio")
+    
+    # Calcular métricas
+    try:
+        metricas_negocio = MetricasNegocio.calcular_todas(
+            inspecciones_hist,
+            historico if historico is not None else pd.DataFrame()
+        )
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric(
+                "✅ Tasa de Éxito",
+                FormateadorMetricas.formatear_porcentaje(metricas_negocio['tasa_exito'])
+            )
+        
+        with col2:
+            st.metric(
+                "💰 Recuperación",
+                FormateadorMetricas.formatear_moneda(metricas_negocio['recuperacion_total'])
+            )
+        
+        with col3:
+            st.metric(
+                "💸 Costo Total",
+                FormateadorMetricas.formatear_moneda(metricas_negocio['costo_total'])
+            )
+        
+        with col4:
+            st.metric(
+                "📈 ROI",
+                FormateadorMetricas.formatear_porcentaje(metricas_negocio['roi'])
+            )
+        
+        # Segunda fila de métricas de negocio
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric(
+                "❌ Falsos Positivos",
+                FormateadorMetricas.formatear_porcentaje(metricas_negocio['tasa_falsos_positivos'])
+            )
+        
+        with col2:
+            st.metric(
+                "🔄 Reincidencia",
+                FormateadorMetricas.formatear_porcentaje(metricas_negocio['tasa_reincidencia'])
+            )
+        
+        with col3:
+            st.metric(
+                "📋 Inspecciones",
+                metricas_negocio['n_inspecciones']
+            )
+        
+        with col4:
+            if metricas_negocio['costo_total'] > 0:
+                rentabilidad = metricas_negocio['recuperacion_total'] - metricas_negocio['costo_total']
+                st.metric(
+                    "💵 Rentabilidad",
+                    FormateadorMetricas.formatear_moneda(rentabilidad)
+                )
+    
+    except Exception as e:
+        st.warning(f"⚠️ No se pudieron calcular todas las métricas: {e}")
+
+# ============================================================
+# BUSCADOR DE CLIENTES
 # ============================================================
 
 st.markdown("---")
@@ -216,12 +414,13 @@ if buscar and id_cliente_buscar:
     st.session_state.cliente_buscado = id_cliente_buscar
     
     if historico is not None and 'id_cliente' in historico.columns:
-        historial_cliente = historico[historico['id_cliente'].str.upper() == id_cliente_buscar]
+        historial_cliente = historico[
+            historico['id_cliente'].str.upper() == id_cliente_buscar
+        ]
         
         if not historial_cliente.empty:
             st.success(f"✅ Cliente encontrado: {id_cliente_buscar}")
             
-            # Mostrar resumen del cliente
             st.markdown("---")
             st.markdown(f"### 📊 Historial de {id_cliente_buscar}")
             
@@ -232,7 +431,9 @@ if buscar and id_cliente_buscar:
             
             with col2:
                 if 'prioridad' in historial_cliente.columns:
-                    alta_count = len(historial_cliente[historial_cliente['prioridad'] == 'ALTA'])
+                    alta_count = len(
+                        historial_cliente[historial_cliente['prioridad'] == 'ALTA']
+                    )
                     st.metric("⚠️ Alertas Altas", alta_count)
                 else:
                     st.metric("⚠️ Alertas Altas", "N/A")
@@ -247,7 +448,10 @@ if buscar and id_cliente_buscar:
             with col4:
                 if 'fecha_ejecucion' in historial_cliente.columns:
                     ultima = historial_cliente['fecha_ejecucion'].max()
-                    fecha_str = ultima.strftime('%Y-%m-%d') if hasattr(ultima, 'strftime') else str(ultima)
+                    if hasattr(ultima, 'strftime'):
+                        fecha_str = formatear_fecha(ultima, '%Y-%m-%d %H:%M')
+                    else:
+                        fecha_str = str(ultima)
                     st.metric("📅 Última Actualización", fecha_str)
                 else:
                     st.metric("📅 Última Actualización", "N/A")
@@ -265,21 +469,42 @@ if buscar and id_cliente_buscar:
                     y='puntaje_prioridad',
                     title=f'Evolución del Puntaje de Prioridad - {id_cliente_buscar}',
                     markers=True,
-                    labels={'puntaje_prioridad': 'Puntaje de Prioridad', 'fecha_ejecucion': 'Fecha de Ejecución'}
+                    labels={
+                        'puntaje_prioridad': 'Puntaje de Prioridad',
+                        'fecha_ejecucion': 'Fecha de Ejecución (Perú)'
+                    }
                 )
-                fig.add_hline(y=0.7, line_dash="dash", line_color="red", annotation_text="Umbral ALTA")
-                fig.add_hline(y=0.4, line_dash="dash", line_color="orange", annotation_text="Umbral MEDIA")
+                fig.add_hline(
+                    y=0.7,
+                    line_dash="dash",
+                    line_color="red",
+                    annotation_text="Umbral ALTA"
+                )
+                fig.add_hline(
+                    y=0.4,
+                    line_dash="dash",
+                    line_color="orange",
+                    annotation_text="Umbral MEDIA"
+                )
                 st.plotly_chart(fig, use_container_width=True)
             
             # Mostrar tabla completa del cliente
             st.markdown("---")
             st.markdown("### 📋 Detalle de Registros")
             
-            columnas_mostrar = ['fecha_ejecucion', 'prioridad', 'puntaje_prioridad', 'probabilidad']
+            columnas_mostrar = [
+                'fecha_ejecucion',
+                'prioridad',
+                'puntaje_prioridad',
+                'probabilidad'
+            ]
             if 'ejecucion_id' in historial_ordenado.columns:
                 columnas_mostrar.insert(0, 'ejecucion_id')
             
-            columnas_mostrar = [col for col in columnas_mostrar if col in historial_ordenado.columns]
+            columnas_mostrar = [
+                col for col in columnas_mostrar
+                if col in historial_ordenado.columns
+            ]
             
             st.dataframe(
                 historial_ordenado[columnas_mostrar],
@@ -292,7 +517,7 @@ if buscar and id_cliente_buscar:
                 st.download_button(
                     label="Descargar CSV",
                     data=csv,
-                    file_name=f"historial_cliente_{id_cliente_buscar}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    file_name=f"historial_cliente_{id_cliente_buscar}_{ahora_peru().strftime('%Y%m%d_%H%M%S')}.csv",
                     mime="text/csv"
                 )
         else:
@@ -311,12 +536,14 @@ if buscar and id_cliente_buscar:
 if historico is not None and 'id_cliente' in historico.columns:
     with st.expander("💡 Clientes con más alertas (para pruebas)"):
         if 'prioridad' in historico.columns:
-            top_clientes = historico[historico['prioridad'] == 'ALTA']['id_cliente'].value_counts().head(10)
+            top_clientes = historico[
+                historico['prioridad'] == 'ALTA'
+            ]['id_cliente'].value_counts().head(10)
+            
             st.write("**Clientes con más alertas de ALTA prioridad:**")
             for cliente, count in top_clientes.items():
                 st.write(f"- `{cliente}`: {count} alertas")
             
-            # Botón para buscar directamente
             if not top_clientes.empty:
                 cliente_ejemplo = top_clientes.index[0]
                 if st.button(f"🔍 Buscar {cliente_ejemplo}"):
@@ -336,7 +563,8 @@ with st.expander("🔍 Ver datos cargados (diagnóstico)"):
     st.write("**Histórico:**")
     if historico is not None:
         st.write(f"- Total registros: {len(historico)}")
-        st.write(f"- Ejecuciones: {historico['ejecucion_id'].nunique() if 'ejecucion_id' in historico.columns else 'N/A'}")
+        if 'ejecucion_id' in historico.columns:
+            st.write(f"- Ejecuciones: {historico['ejecucion_id'].nunique()}")
         if 'fecha_ejecucion' in historico.columns:
             st.write(f"- Fechas: {historico['fecha_ejecucion'].unique()}")
         st.dataframe(historico.head(10))
@@ -346,6 +574,12 @@ with st.expander("🔍 Ver datos cargados (diagnóstico)"):
     st.write("**Últimos datos:**")
     st.write(f"- Total registros: {len(ultimos_datos)}")
     st.dataframe(ultimos_datos.head(10))
+    
+    st.write("**Métricas del modelo:**")
+    st.json(metricas_modelo)
+    
+    st.write("**Estado del bucle cerrado:**")
+    st.json(estado_bucle)
 
 # ============================================================
 # EVOLUCIÓN HISTÓRICA
@@ -358,21 +592,34 @@ if historico is not None and 'fecha_ejecucion' in historico.columns:
     col1, col2 = st.columns(2)
     
     with col1:
-        evolucion = historico.groupby(['fecha_ejecucion', 'prioridad']).size().reset_index(name='count')
+        evolucion = historico.groupby(
+            ['fecha_ejecucion', 'prioridad']
+        ).size().reset_index(name='count')
+        
         fig = px.line(
             evolucion,
             x='fecha_ejecucion',
             y='count',
             color='prioridad',
             title='Evolución de Prioridades por Ejecución',
-            color_discrete_map={'ALTA': '#ff6b6b', 'MEDIA': '#ffd93d', 'BAJA': '#6bcb77'},
+            color_discrete_map={
+                'ALTA': '#ff6b6b',
+                'MEDIA': '#ffd93d',
+                'BAJA': '#6bcb77'
+            },
             markers=True
         )
-        fig.update_layout(xaxis_title='Fecha de Ejecución', yaxis_title='Número de Suministros')
+        fig.update_layout(
+            xaxis_title='Fecha de Ejecución (Perú)',
+            yaxis_title='Número de Suministros'
+        )
         st.plotly_chart(fig, use_container_width=True)
     
     with col2:
-        total_por_ejecucion = historico.groupby('fecha_ejecucion').size().reset_index(name='total')
+        total_por_ejecucion = historico.groupby(
+            'fecha_ejecucion'
+        ).size().reset_index(name='total')
+        
         fig = px.bar(
             total_por_ejecucion,
             x='fecha_ejecucion',
@@ -381,7 +628,10 @@ if historico is not None and 'fecha_ejecucion' in historico.columns:
             color='total',
             color_continuous_scale='Blues'
         )
-        fig.update_layout(xaxis_title='Fecha de Ejecución', yaxis_title='Total de Suministros')
+        fig.update_layout(
+            xaxis_title='Fecha de Ejecución (Perú)',
+            yaxis_title='Total de Suministros'
+        )
         st.plotly_chart(fig, use_container_width=True)
 
 # ============================================================
@@ -399,7 +649,11 @@ with col1:
         names='prioridad',
         title='Distribución de Prioridades',
         color='prioridad',
-        color_discrete_map={'ALTA': '#ff6b6b', 'MEDIA': '#ffd93d', 'BAJA': '#6bcb77'},
+        color_discrete_map={
+            'ALTA': '#ff6b6b',
+            'MEDIA': '#ffd93d',
+            'BAJA': '#6bcb77'
+        },
         hole=0.3
     )
     st.plotly_chart(fig, use_container_width=True)
@@ -410,7 +664,11 @@ with col2:
         x='probabilidad',
         y='puntaje_prioridad',
         color='prioridad',
-        color_discrete_map={'ALTA': '#ff6b6b', 'MEDIA': '#ffd93d', 'BAJA': '#6bcb77'},
+        color_discrete_map={
+            'ALTA': '#ff6b6b',
+            'MEDIA': '#ffd93d',
+            'BAJA': '#6bcb77'
+        },
         hover_data=['id_cliente'],
         title='Probabilidad vs Puntaje de Prioridad'
     )
@@ -438,7 +696,7 @@ with col1:
         st.download_button(
             label="Descargar CSV",
             data=csv,
-            file_name=f"orion_lista_inspeccion_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            file_name=f"orion_lista_inspeccion_{ahora_peru().strftime('%Y%m%d_%H%M%S')}.csv",
             mime="text/csv"
         )
 
@@ -447,7 +705,7 @@ with col2:
         st.download_button(
             label="📥 Exportar Inspecciones",
             data=inspecciones.to_csv(index=False),
-            file_name=f"orion_inspecciones_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            file_name=f"orion_inspecciones_{ahora_peru().strftime('%Y%m%d_%H%M%S')}.csv",
             mime="text/csv"
         )
 
@@ -485,7 +743,7 @@ if historico is not None:
             st.download_button(
                 label="Descargar CSV",
                 data=csv,
-                file_name=f"orion_historico_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                file_name=f"orion_historico_{ahora_peru().strftime('%Y%m%d_%H%M%S')}.csv",
                 mime="text/csv"
             )
 
@@ -501,7 +759,10 @@ col1, col2, col3 = st.columns(3)
 with col1:
     if historico is not None and 'fecha_ejecucion' in historico.columns:
         primera = historico['fecha_ejecucion'].min()
-        fecha_str = primera.strftime('%Y-%m-%d %H:%M') if hasattr(primera, 'strftime') else str(primera)
+        if hasattr(primera, 'strftime'):
+            fecha_str = formatear_fecha(primera, '%Y-%m-%d %H:%M')
+        else:
+            fecha_str = str(primera)
         st.metric("📅 Primera Ejecución", fecha_str)
     else:
         st.metric("📅 Primera Ejecución", "N/A")
@@ -509,7 +770,10 @@ with col1:
 with col2:
     if datos['ultima_actualizacion']:
         if hasattr(datos['ultima_actualizacion'], 'strftime'):
-            fecha_str = datos['ultima_actualizacion'].strftime('%Y-%m-%d %H:%M')
+            fecha_str = formatear_fecha(
+                datos['ultima_actualizacion'],
+                '%Y-%m-%d %H:%M'
+            )
         else:
             fecha_str = str(datos['ultima_actualizacion'])
         st.metric("📅 Última Ejecución", fecha_str)
@@ -523,11 +787,48 @@ with col3:
         st.metric("📊 Total Registros", "N/A")
 
 # ============================================================
+# ESTADO DEL BUCLE CERRADO
+# ============================================================
+
+if estado_bucle:
+    st.markdown("---")
+    st.subheader("🔄 Estado del Bucle Cerrado")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        version = estado_bucle.get('version_actual', 'v0.0.0')
+        st.metric("📦 Versión del Modelo", version)
+    
+    with col2:
+        ultimo = estado_bucle.get('ultimo_reentrenamiento')
+        if ultimo:
+            try:
+                fecha_retrain = datetime.fromisoformat(ultimo)
+                fecha_str = formatear_fecha(fecha_retrain, '%Y-%m-%d %H:%M')
+            except:
+                fecha_str = str(ultimo)
+            st.metric("🔄 Último Reentrenamiento", fecha_str)
+        else:
+            st.metric("🔄 Último Reentrenamiento", "N/A")
+    
+    with col3:
+        total_muestras = estado_bucle.get('total_muestras', 0)
+        st.metric("📊 Total Muestras", total_muestras)
+    
+    with col4:
+        historial = estado_bucle.get('metricas_historial', [])
+        st.metric("📈 Versiones", len(historial))
+
+# ============================================================
 # ACTUALIZACIÓN AUTOMÁTICA
 # ============================================================
 
 st.markdown("---")
-st.caption("🌌 Orion - Detección de Hurto de Energía | v2.0.0")
+st.caption(
+    f"🌌 Orion - Detección de Hurto de Energía | v2.0.0 | "
+    f"{ahora_peru().strftime('%Y-%m-%d %H:%M:%S')} (Perú)"
+)
 
 if auto_refresh:
     time.sleep(refresh_interval)
