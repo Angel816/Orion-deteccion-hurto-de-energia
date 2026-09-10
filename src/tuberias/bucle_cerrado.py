@@ -24,17 +24,16 @@ class BucleCerrado:
     """
     
     def __init__(self):
-        self.ruta_entrenamiento = Path(configuracion.obtener(
-            'datos.ruta_retroalimentacion', 'datos/retroalimentacion/entrenamiento'
-        ))
-        self.ruta_modelos = Path(configuracion.obtener('modelos.ruta', 'modelos/actual'))
-        self.ruta_historico = Path(configuracion.obtener(
-            'modelos.ruta_historico', 'modelos/historico'
-        ))
+        self.ruta_entrenamiento = Path('datos/retroalimentacion/entrenamiento')
+        self.ruta_modelos = Path('modelos/actual')
+        self.ruta_historico = Path('modelos/historico')
         
         self.ruta_entrenamiento.mkdir(parents=True, exist_ok=True)
         self.ruta_modelos.mkdir(parents=True, exist_ok=True)
         self.ruta_historico.mkdir(parents=True, exist_ok=True)
+        
+        self.archivo_entrenamiento = self.ruta_entrenamiento / 'datos_etiquetados.parquet'
+        self.archivo_estado = self.ruta_entrenamiento / 'estado_bucle.json'
         
         self.min_muestras = configuracion.obtener('bucle_cerrado.minimo_muestras', 50)
         self.max_dias = configuracion.obtener('bucle_cerrado.maximo_dias', 30)
@@ -45,109 +44,162 @@ class BucleCerrado:
     
     def _cargar_estado(self) -> dict:
         """Carga el estado del bucle cerrado"""
-        archivo_estado = self.ruta_entrenamiento / 'estado_bucle.json'
-        if archivo_estado.exists():
-            with open(archivo_estado, 'r', encoding='utf-8') as f:
-                return json.load(f)
+        if self.archivo_estado.exists():
+            try:
+                with open(self.archivo_estado, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except:
+                pass
+        
         return {
             'ultimo_reentrenamiento': None,
             'total_muestras': 0,
             'version_actual': 'v0.0.0',
-            'metricas_historial': []
+            'metricas_historial': [],
+            'features_modelo': []
         }
     
     def _guardar_estado(self):
         """Guarda el estado del bucle cerrado"""
-        archivo_estado = self.ruta_entrenamiento / 'estado_bucle.json'
-        with open(archivo_estado, 'w', encoding='utf-8') as f:
+        with open(self.archivo_estado, 'w', encoding='utf-8') as f:
             json.dump(self.estado, f, indent=2, default=str, ensure_ascii=False)
     
-    def recolectar_feedback(self, resultados: pd.DataFrame) -> dict:
-        """Recolecta y almacena resultados de inspección"""
-        registro.info("📥 Recolectando feedback de inspecciones...")
+    def _obtener_features(self, df: pd.DataFrame) -> list:
+        """
+        Obtiene las features del modelo desde el estado o las infiere
+        """
+        # Intentar desde el estado
+        features_modelo = self.estado.get('features_modelo', [])
         
-        requeridos = ['id_cliente', 'resultado', 'label']
-        for col in requeridos:
-            if col not in resultados.columns:
-                raise ValueError(f"Columna requerida faltante: {col}")
+        # Si no hay, inferir desde el DataFrame
+        if not features_modelo:
+            columnas_excluir = [
+                'id_cliente', 'resultado', 'label', 'fecha_inspeccion',
+                'fecha_procesamiento', 'tipo_irregularidad', 'descripcion',
+                'inspector', 'cnr_estimado', 'monto_recuperar', 'prioridad'
+            ]
+            features_modelo = [
+                col for col in df.columns 
+                if col not in columnas_excluir 
+                and df[col].dtype in ['float64', 'int64', 'float32', 'int32']
+            ]
         
-        resultados['fecha_procesamiento'] = ahora_peru()  # ← HORA PERÚ
+        # Filtrar las que existan en el DataFrame
+        features_modelo = [f for f in features_modelo if f in df.columns]
         
-        archivo_entrenamiento = self.ruta_entrenamiento / 'datos_etiquetados.parquet'
-        if archivo_entrenamiento.exists():
-            existente = pd.read_parquet(archivo_entrenamiento)
-            combinado = pd.concat([existente, resultados], ignore_index=True)
-        else:
-            combinado = resultados
+        return features_modelo
+    
+    def _cargar_datos_etiquetados(self) -> pd.DataFrame:
+        """
+        Carga los datos etiquetados desde el archivo de entrenamiento
+        """
+        if self.archivo_entrenamiento.exists():
+            try:
+                df = pd.read_parquet(self.archivo_entrenamiento)
+                registro.info(f"📂 Datos cargados: {len(df)} registros")
+                return df
+            except Exception as e:
+                registro.warning(f"⚠️ Error cargando datos: {e}")
         
-        combinado.to_parquet(archivo_entrenamiento, index=False)
-        self.estado['total_muestras'] = len(combinado)
-        self._guardar_estado()
-        
-        stats = {
-            'nuevos': len(resultados),
-            'total_acumulado': len(combinado),
-            'confirmados': len(resultados[resultados['label'] == 1])
-        }
-        registro.info(f"✅ {stats['nuevos']} nuevos registros")
-        return stats
+        registro.warning("⚠️ No se encontraron datos etiquetados")
+        return pd.DataFrame()
     
     def evaluar_modelo(self) -> dict:
         """Evalúa el modelo actual con los datos etiquetados"""
         registro.info("📊 Evaluando modelo actual...")
         
-        archivo_entrenamiento = self.ruta_entrenamiento / 'datos_etiquetados.parquet'
-        if not archivo_entrenamiento.exists():
-            return {'error': 'No hay datos etiquetados'}
+        # Cargar datos etiquetados
+        df = self._cargar_datos_etiquetados()
         
-        df = pd.read_parquet(archivo_entrenamiento)
+        if df.empty:
+            return {'error': 'No hay datos etiquetados disponibles'}
+        
+        if 'label' not in df.columns:
+            return {'error': 'Los datos no tienen columna label'}
+        
+        # Cargar modelo actual
         archivo_modelo = self.ruta_modelos / 'modelo_actual.pkl'
         if not archivo_modelo.exists():
-            return {'error': 'No hay modelo actual'}
-        
-        modelo = joblib.load(archivo_modelo)
-        columnas_excluir = ['id_cliente', 'resultado', 'label', 
-                           'fecha_inspeccion', 'fecha_procesamiento']
-        columnas_features = [col for col in df.columns if col not in columnas_excluir]
-        X = df[columnas_features].values
-        y = df['label'].values
+            return {'error': 'No hay modelo actual entrenado'}
         
         try:
+            modelo = joblib.load(archivo_modelo)
+        except Exception as e:
+            return {'error': f'Error cargando modelo: {e}'}
+        
+        # Obtener features
+        features_modelo = self._obtener_features(df)
+        
+        if not features_modelo:
+            return {'error': 'No hay features disponibles'}
+        
+        try:
+            X = df[features_modelo].fillna(0).values
+            y = df['label'].values
+            
+            # Predecir
+            if hasattr(modelo, 'predecir'):
+                y_prob = modelo.predecir(X)
+            else:
+                y_prob = modelo.predict_proba(X)[:, 1]
+            
+            y_pred = (y_prob > 0.5).astype(int)
+            
+            # Calcular métricas
             from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-            y_pred = modelo.predecir(X) > 0.5
+            
             metricas = {
-                'accuracy': accuracy_score(y, y_pred),
-                'precision': precision_score(y, y_pred, zero_division=0),
-                'recall': recall_score(y, y_pred, zero_division=0),
-                'f1': f1_score(y, y_pred, zero_division=0),
+                'accuracy': float(accuracy_score(y, y_pred)),
+                'precision': float(precision_score(y, y_pred, zero_division=0)),
+                'recall': float(recall_score(y, y_pred, zero_division=0)),
+                'f1': float(f1_score(y, y_pred, zero_division=0)),
                 'n_muestras': len(y),
                 'positivos': int(y.sum()),
-                'negativos': int(len(y) - y.sum())
+                'negativos': int(len(y) - y.sum()),
+                'features_usadas': features_modelo,
+                'timestamp': iso_peru()
             }
+            
             registro.info(f"📊 Accuracy: {metricas['accuracy']:.3f}, F1: {metricas['f1']:.3f}")
             return metricas
+            
         except Exception as e:
-            registro.error(f"❌ Error evaluando: {e}")
+            registro.error(f"❌ Error evaluando modelo: {e}")
             return {'error': str(e)}
     
     def debe_reentrenar(self, evaluacion: dict) -> bool:
         """Decide si es necesario reentrenar el modelo"""
         registro.info("🤔 Evaluando necesidad de reentrenamiento...")
         
+        # 1. Si no hay modelo, siempre reentrenar
+        archivo_modelo = self.ruta_modelos / 'modelo_actual.pkl'
+        if not archivo_modelo.exists():
+            registro.info("   📊 No hay modelo entrenado → Reentrenar")
+            return True
+        
+        # 2. Si hay error en la evaluación, reentrenar
         if 'error' in evaluacion:
+            registro.info(f"   📊 Error en evaluación → Reentrenar")
+            return True
+        
+        # 3. Cargar datos etiquetados
+        df = self._cargar_datos_etiquetados()
+        if df.empty:
+            registro.info("   📊 No hay datos → No reentrenar")
             return False
         
-        archivo_entrenamiento = self.ruta_entrenamiento / 'datos_etiquetados.parquet'
-        if not archivo_entrenamiento.exists():
-            return False
-        
-        df = pd.read_parquet(archivo_entrenamiento)
+        # 4. Contar nuevas muestras desde el último reentrenamiento
         ultima_fecha = self.estado.get('ultimo_reentrenamiento')
         
         if ultima_fecha:
             try:
                 ultima_fecha_dt = datetime.fromisoformat(ultima_fecha)
-                nuevas = len(df[df['fecha_procesamiento'] > ultima_fecha_dt])
+                if 'fecha_procesamiento' in df.columns:
+                    df['fecha_procesamiento'] = pd.to_datetime(df['fecha_procesamiento'])
+                    nuevas = len(df[df['fecha_procesamiento'] > ultima_fecha_dt])
+                else:
+                    nuevas = len(df)
+                
                 dias_desde = (ahora_peru().replace(tzinfo=None) - ultima_fecha_dt.replace(tzinfo=None)).days
             except:
                 nuevas = len(df)
@@ -156,44 +208,47 @@ class BucleCerrado:
             nuevas = len(df)
             dias_desde = 999
         
-        decision = {
-            'nuevas_muestras': nuevas,
-            'dias_desde': dias_desde,
-            'debe_reentrenar': False
-        }
-        
+        # 5. Decisión
         if nuevas >= self.min_muestras:
-            decision['debe_reentrenar'] = True
-            decision['razon'] = f'Suficientes nuevas muestras ({nuevas})'
+            registro.info(f"   📊 Suficientes nuevas muestras ({nuevas}) → Reentrenar")
+            return True
         elif dias_desde >= self.max_dias:
-            decision['debe_reentrenar'] = True
-            decision['razon'] = f'Ha pasado suficiente tiempo ({dias_desde} días)'
+            registro.info(f"   📊 Ha pasado suficiente tiempo ({dias_desde} días) → Reentrenar")
+            return True
         elif evaluacion.get('accuracy', 1) < self.umbral_precision:
-            decision['debe_reentrenar'] = True
-            decision['razon'] = f'Precisión por debajo del umbral'
+            registro.info(f"   📊 Precisión baja ({evaluacion.get('accuracy', 0):.3f}) → Reentrenar")
+            return True
         else:
-            decision['razon'] = 'No se cumplen condiciones'
-        
-        registro.info(f"📊 Decisión: {'✅ Reentrenar' if decision['debe_reentrenar'] else '⏳ Esperar'}")
-        return decision['debe_reentrenar']
+            registro.info(f"   📊 No se cumplen condiciones → Esperar")
+            return False
     
     def reentrenar_modelo(self) -> dict:
         """Reentrena el modelo con todos los datos disponibles"""
         registro.info("🧠 Iniciando reentrenamiento del modelo...")
         
-        archivo_entrenamiento = self.ruta_entrenamiento / 'datos_etiquetados.parquet'
-        if not archivo_entrenamiento.exists():
-            return {'error': 'No hay datos etiquetados'}
+        # Cargar datos etiquetados
+        df = self._cargar_datos_etiquetados()
         
-        df = pd.read_parquet(archivo_entrenamiento)
+        if df.empty:
+            return {'error': 'No hay datos etiquetados disponibles'}
+        
+        if 'label' not in df.columns:
+            return {'error': 'Los datos no tienen columna label'}
+        
         registro.info(f"📊 Datos totales: {len(df)} registros")
         
-        columnas_excluir = ['id_cliente', 'resultado', 'label', 
-                           'fecha_inspeccion', 'fecha_procesamiento']
-        columnas_features = [col for col in df.columns if col not in columnas_excluir]
-        X = df[columnas_features].values
+        # Obtener features
+        features_modelo = self._obtener_features(df)
+        
+        if not features_modelo:
+            return {'error': 'No hay features disponibles'}
+        
+        registro.info(f"📊 Features: {features_modelo}")
+        
+        X = df[features_modelo].fillna(0).values
         y = df['label'].values
         
+        # Seleccionar modelo según cantidad de datos
         if len(df) < 100:
             detector = BosqueAislamiento()
             tipo_modelo = "Bosque de Aislamiento (Fase 1)"
@@ -205,24 +260,49 @@ class BucleCerrado:
             tipo_modelo = "Conjunto (Fase 3)"
         
         registro.info(f"🧠 Usando {tipo_modelo}")
-        detector.entrenar(X, y)
         
+        # Entrenar
+        try:
+            detector.entrenar(X, y)
+        except Exception as e:
+            registro.error(f"❌ Error entrenando: {e}")
+            return {'error': str(e)}
+        
+        # Guardar modelo
         archivo_modelo = self.ruta_modelos / 'modelo_actual.pkl'
         detector.guardar(str(archivo_modelo))
         
+        # Guardar métricas
         version = self._incrementar_version()
-        self.estado['ultimo_reentrenamiento'] = iso_peru()  # ← HORA PERÚ
-        self.estado['version_actual'] = version
-        self.estado['metricas_historial'].append({
+        metrics_path = self.ruta_modelos / 'metrics.json'
+        
+        metricas_guardar = {
             'version': version,
-            'fecha': iso_peru(),  # ← HORA PERÚ
-            'metricas': detector.metricas,
+            'fecha': iso_peru(),
             'n_muestras': len(df),
-            'tipo_modelo': tipo_modelo
-        })
+            'tipo_modelo': tipo_modelo,
+            'features_usadas': features_modelo,
+            'accuracy': detector.metricas.get('accuracy', 0),
+            'precision': detector.metricas.get('precision', 0),
+            'recall': detector.metricas.get('recall', 0),
+            'f1': detector.metricas.get('f1', 0)
+        }
+        
+        with open(metrics_path, 'w', encoding='utf-8') as f:
+            json.dump(metricas_guardar, f, indent=2, default=str, ensure_ascii=False)
+        
+        registro.info(f"💾 Métricas guardadas: {metrics_path}")
+        
+        # Actualizar estado
+        self.estado['ultimo_reentrenamiento'] = iso_peru()
+        self.estado['version_actual'] = version
+        self.estado['total_muestras'] = len(df)
+        self.estado['features_modelo'] = features_modelo
+        self.estado['metricas_historial'].append(metricas_guardar)
         self._guardar_estado()
         
         registro.info(f"✅ Modelo reentrenado: {version}")
+        
         return {
             'version': version,
             'tipo_modelo': tipo_modelo,
@@ -233,13 +313,20 @@ class BucleCerrado:
     def _incrementar_version(self) -> str:
         """Incrementa la versión del modelo"""
         actual = self.estado.get('version_actual', 'v0.0.0')
-        mayor, menor, parche = actual[1:].split('.')
-        return f'v{mayor}.{menor}.{int(parche) + 1}'
+        try:
+            mayor, menor, parche = actual[1:].split('.')
+            return f'v{mayor}.{menor}.{int(parche) + 1}'
+        except:
+            return 'v0.0.1'
     
     def ejecutar_ciclo_completo(self) -> dict:
         """Ejecuta el ciclo completo"""
         registro.info("🔄 Ejecutando ciclo completo...")
+        
         evaluacion = self.evaluar_modelo()
+        
+        if 'error' in evaluacion:
+            registro.warning(f"⚠️ {evaluacion['error']}")
         
         if self.debe_reentrenar(evaluacion):
             resultado = self.reentrenar_modelo()
@@ -252,11 +339,11 @@ class BucleCerrado:
     
     def obtener_estado(self) -> dict:
         """Retorna el estado actual del bucle cerrado"""
-        archivo_entrenamiento = self.ruta_entrenamiento / 'datos_etiquetados.parquet'
-        if archivo_entrenamiento.exists():
-            df = pd.read_parquet(archivo_entrenamiento)
+        df = self._cargar_datos_etiquetados()
+        
+        if not df.empty:
             total_muestras = len(df)
-            positivos = df['label'].sum() if 'label' in df.columns else 0
+            positivos = int(df['label'].sum()) if 'label' in df.columns else 0
         else:
             total_muestras = 0
             positivos = 0
@@ -269,5 +356,6 @@ class BucleCerrado:
             'version_actual': self.estado.get('version_actual', 'v0.0.0'),
             'minimo_muestras': self.min_muestras,
             'maximo_dias': self.max_dias,
-            'umbral_precision': self.umbral_precision
+            'umbral_precision': self.umbral_precision,
+            'features_modelo': self.estado.get('features_modelo', [])
         }

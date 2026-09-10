@@ -2,6 +2,12 @@
 """
 Dashboard de Orion - Monitoreo Continuo con Buscador de Clientes y Métricas
 Zona horaria: Perú (UTC-5)
+Moneda: Nuevo Sol Peruano (S/)
+
+Lee inspecciones desde carpetas oficiales:
+1. datos/retroalimentacion/inspecciones/
+2. datos/brutos/inspecciones/
+3. datos_pasados/inspecciones/
 """
 
 import streamlit as st
@@ -42,7 +48,11 @@ st.set_page_config(
 # ============================================================
 
 def cargar_datos():
-    """Carga los datos para el dashboard"""
+    """
+    Carga los datos para el dashboard:
+    - Histórico acumulado (TODOS los datos)
+    - Última ejecución (para KPIs actuales)
+    """
     processed_dir = Path('datos/procesados')
     resultado = {
         'historico': None,
@@ -84,44 +94,58 @@ def cargar_datos():
     return resultado
 
 
-def cargar_inspecciones_latest():
-    """Carga la última lista de inspecciones"""
-    processed_dir = Path('datos/procesados')
-    latest_path = processed_dir / 'inspecciones_priorizadas_latest.csv'
-    if latest_path.exists():
-        return pd.read_csv(latest_path)
-    return None
-
-
-def cargar_inspecciones_historicas():
-    """Carga todas las inspecciones históricas"""
-    feedback_dir = Path('datos/retroalimentacion/inspecciones')
-    if not feedback_dir.exists():
-        return None
+def cargar_inspecciones():
+    """
+    Carga inspecciones desde carpetas oficiales (NO desde muestra)
+    """
+    # 1. Prioridad 1: retroalimentación
+    insp_feedback = Path('datos/retroalimentacion/inspecciones')
+    if insp_feedback.exists():
+        archivos = list(insp_feedback.glob('*.csv'))
+        if archivos:
+            try:
+                dfs = [pd.read_csv(f) for f in archivos]
+                df = pd.concat(dfs, ignore_index=True)
+                return df, str(insp_feedback)
+            except Exception as e:
+                pass
     
-    archivos = list(feedback_dir.glob('*.csv'))
-    if not archivos:
-        return None
+    # 2. Prioridad 2: brutos
+    insp_brutos = Path('datos/brutos/inspecciones')
+    if insp_brutos.exists():
+        archivos = list(insp_brutos.glob('*.parquet'))
+        if archivos:
+            try:
+                dfs = [pd.read_parquet(f) for f in archivos]
+                df = pd.concat(dfs, ignore_index=True)
+                return df, str(insp_brutos)
+            except Exception as e:
+                pass
     
-    dfs = []
-    for archivo in archivos:
-        try:
-            df = pd.read_csv(archivo)
-            dfs.append(df)
-        except Exception as e:
-            print(f"Error cargando {archivo}: {e}")
+    # 3. Prioridad 3: datos_pasados
+    insp_pasados = Path('datos_pasados/inspecciones')
+    if insp_pasados.exists():
+        archivos = list(insp_pasados.glob('*.parquet'))
+        if archivos:
+            try:
+                dfs = [pd.read_parquet(f) for f in archivos]
+                df = pd.concat(dfs, ignore_index=True)
+                return df, str(insp_pasados)
+            except Exception as e:
+                pass
     
-    if dfs:
-        return pd.concat(dfs, ignore_index=True)
-    return None
+    return None, None
 
 
 def cargar_metricas_modelo():
     """Carga las métricas del modelo actual"""
     metrics_path = Path('modelos/actual/metrics.json')
     if metrics_path.exists():
-        with open(metrics_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        try:
+            with open(metrics_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            pass
     return {}
 
 
@@ -129,8 +153,11 @@ def cargar_estado_bucle():
     """Carga el estado del bucle cerrado"""
     estado_path = Path('datos/retroalimentacion/entrenamiento/estado_bucle.json')
     if estado_path.exists():
-        with open(estado_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        try:
+            with open(estado_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            pass
     return {}
 
 
@@ -142,8 +169,8 @@ if 'datos' not in st.session_state:
     st.session_state.datos = None
 if 'inspecciones' not in st.session_state:
     st.session_state.inspecciones = None
-if 'inspecciones_hist' not in st.session_state:
-    st.session_state.inspecciones_hist = None
+if 'fuente_inspecciones' not in st.session_state:
+    st.session_state.fuente_inspecciones = None
 if 'metricas_modelo' not in st.session_state:
     st.session_state.metricas_modelo = None
 if 'estado_bucle' not in st.session_state:
@@ -168,7 +195,7 @@ if st.sidebar.button("🔄 Refrescar ahora"):
     st.cache_data.clear()
     st.session_state.datos = None
     st.session_state.inspecciones = None
-    st.session_state.inspecciones_hist = None
+    st.session_state.fuente_inspecciones = None
     st.session_state.metricas_modelo = None
     st.session_state.estado_bucle = None
     st.session_state.cliente_buscado = None
@@ -181,15 +208,14 @@ if st.sidebar.button("🔄 Refrescar ahora"):
 st.title("🌌 Orion - Monitoreo Continuo")
 st.markdown("### Sistema de Detección y Priorización de Hurto de Energía")
 
-# Cargar todos los datos
+# Cargar datos
 if st.session_state.datos is None:
     st.session_state.datos = cargar_datos()
 
 if st.session_state.inspecciones is None:
-    st.session_state.inspecciones = cargar_inspecciones_latest()
-
-if st.session_state.inspecciones_hist is None:
-    st.session_state.inspecciones_hist = cargar_inspecciones_historicas()
+    inspecciones, fuente = cargar_inspecciones()
+    st.session_state.inspecciones = inspecciones
+    st.session_state.fuente_inspecciones = fuente
 
 if st.session_state.metricas_modelo is None:
     st.session_state.metricas_modelo = cargar_metricas_modelo()
@@ -200,25 +226,27 @@ if st.session_state.estado_bucle is None:
 # Asignar variables
 datos = st.session_state.datos
 inspecciones = st.session_state.inspecciones
-inspecciones_hist = st.session_state.inspecciones_hist
+fuente_inspecciones = st.session_state.fuente_inspecciones
 metricas_modelo = st.session_state.metricas_modelo
 estado_bucle = st.session_state.estado_bucle
 
 # Verificar si hay datos
 if datos['ultimos'] is None:
     st.warning("⚠️ No hay datos de puntajes disponibles.")
-    st.info("📌 Ejecuta primero la tubería diaria:")
-    st.code("python scripts/ejecutar_tuberia_diaria.py", language="bash")
+    st.info("📌 Ejecuta primero el flujo completo:")
+    st.code("python scripts/ejecutar_flujo_completo.py", language="bash")
     
-    if st.button("🚀 Ejecutar tubería ahora"):
-        with st.spinner("Ejecutando tubería..."):
+    if st.button("🚀 Ejecutar flujo completo ahora"):
+        with st.spinner("Ejecutando flujo completo..."):
             result = subprocess.run(
-                ["python", "scripts/ejecutar_tuberia_diaria.py"],
+                ["python", "scripts/ejecutar_flujo_completo.py"],
                 capture_output=True,
-                text=True
+                text=True,
+                encoding='utf-8',
+                errors='replace'
             )
             if result.returncode == 0:
-                st.success("✅ Tubería ejecutada correctamente")
+                st.success("✅ Flujo completo ejecutado correctamente")
                 st.rerun()
             else:
                 st.error(f"❌ Error: {result.stderr}")
@@ -291,7 +319,10 @@ with col3:
 st.markdown("---")
 st.subheader("📊 Métricas del Sistema")
 
-# Métricas del modelo
+# ============================================================
+# MÉTRICAS DEL MODELO
+# ============================================================
+
 if metricas_modelo:
     st.markdown("#### 🧠 Métricas del Modelo")
     
@@ -314,79 +345,112 @@ if metricas_modelo:
         st.metric("⚡ F1-Score", FormateadorMetricas.formatear_porcentaje(f1))
     
     with col5:
-        if 'cv_f1_mean' in metricas_modelo:
-            st.metric("📊 CV F1", FormateadorMetricas.formatear_porcentaje(metricas_modelo['cv_f1_mean']))
-        else:
-            st.metric("📊 CV F1", "N/A")
+        version = metricas_modelo.get('version', 'N/A')
+        st.metric("📦 Versión", version)
 
-# Métricas de negocio (desde inspecciones)
-if inspecciones_hist is not None and not inspecciones_hist.empty:
-    st.markdown("#### 💰 Métricas de Negocio")
+# ============================================================
+# MÉTRICAS DE NEGOCIO (desde inspecciones oficiales)
+# ============================================================
+
+if inspecciones is not None and not inspecciones.empty:
+    st.markdown("#### 💰 Métricas de Negocio (en Nuevos Soles)")
     
-    # Calcular métricas
+    # Mostrar fuente
+    with st.expander(f"📂 Fuente: {fuente_inspecciones} ({len(inspecciones)} registros)"):
+        st.dataframe(inspecciones.head(10))
+    
     try:
-        metricas_negocio = MetricasNegocio.calcular_todas(
-            inspecciones_hist,
-            historico if historico is not None else pd.DataFrame()
-        )
+        total = len(inspecciones)
+        
+        # ============================================================
+        # CALCULAR MÉTRICAS
+        # ============================================================
+        
+        # Normalizar texto de resultado
+        if 'resultado' in inspecciones.columns:
+            resultados_norm = inspecciones['resultado'].astype(str).str.strip().str.title()
+            
+            confirmados = len(resultados_norm[resultados_norm == 'Hurto Confirmado'])
+            tasa_exito = confirmados / total if total > 0 else 0
+            
+            falsos = len(resultados_norm[resultados_norm == 'Falso Positivo'])
+            tasa_fp = falsos / total if total > 0 else 0
+        else:
+            tasa_exito = 0
+            tasa_fp = 0
+        
+        # Recuperación (en Soles)
+        if 'monto_recuperar' in inspecciones.columns:
+            recuperacion = pd.to_numeric(
+                inspecciones['monto_recuperar'], 
+                errors='coerce'
+            ).sum()
+            if pd.isna(recuperacion):
+                recuperacion = 0
+        else:
+            recuperacion = 0
+        
+        # Costo (S/ 30 por inspección)
+        costo_unitario = 30.0
+        costo = total * costo_unitario
+        
+        # ROI
+        roi = (recuperacion - costo) / costo if costo > 0 else 0
+        
+        # Rentabilidad
+        rentabilidad = recuperacion - costo
+        
+        # CNR Total
+        if 'cnr_estimado' in inspecciones.columns:
+            cnr_total = pd.to_numeric(
+                inspecciones['cnr_estimado'], 
+                errors='coerce'
+            ).sum()
+            if pd.isna(cnr_total):
+                cnr_total = 0
+        else:
+            cnr_total = 0
+        
+        # ============================================================
+        # MOSTRAR MÉTRICAS
+        # ============================================================
         
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric(
-                "✅ Tasa de Éxito",
-                FormateadorMetricas.formatear_porcentaje(metricas_negocio['tasa_exito'])
-            )
+            st.metric("✅ Tasa de Éxito", FormateadorMetricas.formatear_porcentaje(tasa_exito))
         
         with col2:
-            st.metric(
-                "💰 Recuperación",
-                FormateadorMetricas.formatear_moneda(metricas_negocio['recuperacion_total'])
-            )
+            st.metric("💰 Recuperación", FormateadorMetricas.formatear_moneda(recuperacion))
         
         with col3:
-            st.metric(
-                "💸 Costo Total",
-                FormateadorMetricas.formatear_moneda(metricas_negocio['costo_total'])
-            )
+            st.metric("💸 Costo Total", FormateadorMetricas.formatear_moneda(costo))
         
         with col4:
-            st.metric(
-                "📈 ROI",
-                FormateadorMetricas.formatear_porcentaje(metricas_negocio['roi'])
-            )
+            st.metric("📈 ROI", FormateadorMetricas.formatear_porcentaje(roi))
         
-        # Segunda fila de métricas de negocio
+        # Segunda fila
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric(
-                "❌ Falsos Positivos",
-                FormateadorMetricas.formatear_porcentaje(metricas_negocio['tasa_falsos_positivos'])
-            )
+            st.metric("❌ Falsos Positivos", FormateadorMetricas.formatear_porcentaje(tasa_fp))
         
         with col2:
-            st.metric(
-                "🔄 Reincidencia",
-                FormateadorMetricas.formatear_porcentaje(metricas_negocio['tasa_reincidencia'])
-            )
+            st.metric("📋 Inspecciones", total)
         
         with col3:
-            st.metric(
-                "📋 Inspecciones",
-                metricas_negocio['n_inspecciones']
-            )
+            st.metric("💵 Rentabilidad", FormateadorMetricas.formatear_moneda(rentabilidad))
         
         with col4:
-            if metricas_negocio['costo_total'] > 0:
-                rentabilidad = metricas_negocio['recuperacion_total'] - metricas_negocio['costo_total']
-                st.metric(
-                    "💵 Rentabilidad",
-                    FormateadorMetricas.formatear_moneda(rentabilidad)
-                )
+            st.metric("⚡ CNR Total", f"{cnr_total:,.0f} kWh")
     
     except Exception as e:
-        st.warning(f"⚠️ No se pudieron calcular todas las métricas: {e}")
+        st.error(f"❌ Error calculando métricas: {e}")
+
+else:
+    st.info("ℹ️ No hay inspecciones disponibles para calcular métricas de negocio.")
+    st.info("💡 Ejecuta el flujo completo para generar inspecciones:")
+    st.code("python scripts/ejecutar_flujo_completo.py", language="bash")
 
 # ============================================================
 # BUSCADOR DE CLIENTES
@@ -399,7 +463,7 @@ col1, col2 = st.columns([3, 1])
 
 with col1:
     id_cliente_buscar = st.text_input(
-        "Ingresa el ID del cliente (ej: CL-0001)",
+        "Ingresa el ID del cliente (ej: CL-00001)",
         placeholder="Escribe el ID del cliente...",
         key="buscador_cliente",
         value=st.session_state.cliente_buscado if st.session_state.cliente_buscado else ""
@@ -414,8 +478,12 @@ if buscar and id_cliente_buscar:
     st.session_state.cliente_buscado = id_cliente_buscar
     
     if historico is not None and 'id_cliente' in historico.columns:
-        historial_cliente = historico[
-            historico['id_cliente'].str.upper() == id_cliente_buscar
+        # Normalizar id_cliente en histórico
+        historico_temp = historico.copy()
+        historico_temp['id_cliente_norm'] = historico_temp['id_cliente'].astype(str).str.strip().str.upper()
+        
+        historial_cliente = historico_temp[
+            historico_temp['id_cliente_norm'] == id_cliente_buscar
         ]
         
         if not historial_cliente.empty:
@@ -524,8 +592,7 @@ if buscar and id_cliente_buscar:
             st.warning(f"⚠️ No se encontró el cliente: {id_cliente_buscar}")
             st.info("💡 Sugerencias:")
             st.info("- Verifica que el ID esté escrito correctamente")
-            st.info("- El ID debe estar en mayúsculas (ej: CL-0001)")
-            st.info("- Prueba buscar solo el número (ej: 0001)")
+            st.info("- El ID debe estar en mayúsculas (ej: CL-00001)")
     else:
         st.warning("⚠️ No hay datos históricos disponibles para buscar clientes")
 
@@ -574,6 +641,14 @@ with st.expander("🔍 Ver datos cargados (diagnóstico)"):
     st.write("**Últimos datos:**")
     st.write(f"- Total registros: {len(ultimos_datos)}")
     st.dataframe(ultimos_datos.head(10))
+    
+    st.write("**Inspecciones:**")
+    if inspecciones is not None:
+        st.write(f"- Fuente: {fuente_inspecciones}")
+        st.write(f"- Total: {len(inspecciones)}")
+        st.dataframe(inspecciones.head(10))
+    else:
+        st.warning("No hay inspecciones")
     
     st.write("**Métricas del modelo:**")
     st.json(metricas_modelo)
