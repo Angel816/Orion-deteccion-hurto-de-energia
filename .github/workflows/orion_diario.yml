@@ -1,65 +1,250 @@
 # .github/workflows/orion_diario.yml
+# ============================================================
+# PROYECTO ORION - PIPELINE DIARIO AUTOMÁTICO (MODO DESARROLLO)
+# ============================================================
+# Ejecuta el flujo completo de Orion diariamente:
+#   1. Generar datos realistas (SIMULACIÓN)
+#   2. Procesar cola de datos (normalización)
+#   3. Crear datos de entrenamiento
+#   4. Ejecutar tubería diaria (detección + priorización)
+#   5. Ejecutar bucle cerrado (reentrenamiento)
+#
+# Horario: 6:00 AM hora Perú (11:00 UTC)
+# ============================================================
+
 name: Orion Daily Pipeline
 
 on:
+  # ============================================================
+  # EJECUCIÓN PROGRAMADA (CRON)
+  # ============================================================
   schedule:
-    - cron: '0 6 * * *'   # 6:00 AM diario
-  workflow_dispatch:       # Ejecución manual
+    # 6:00 AM hora Perú = 11:00 UTC
+    - cron: '0 11 * * *'
+  
+  # ============================================================
+  # EJECUCIÓN MANUAL DESDE GITHUB
+  # ============================================================
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: 'Modo de ejecución'
+        required: true
+        default: 'completo'
+        type: choice
+        options:
+          - completo
+          - solo_pipeline
+          - solo_bucle
 
 jobs:
+  # ============================================================
+  # JOB PRINCIPAL: PIPELINE DIARIO
+  # ============================================================
   pipeline:
+    name: 🚀 Pipeline Diario
     runs-on: ubuntu-latest
     timeout-minutes: 60
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      # ============================================================
+      # PASO 1: CHECKOUT
+      # ============================================================
+      - name: 📥 Checkout del repositorio
+        uses: actions/checkout@v4
       
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      # ============================================================
+      # PASO 2: SETUP PYTHON
+      # ============================================================
+      - name: 🐍 Configurar Python 3.10
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
           cache: 'pip'
+          cache-dependency-path: 'requirements.txt'
       
-      - name: Install dependencies
+      # ============================================================
+      # PASO 3: INSTALAR DEPENDENCIAS
+      # ============================================================
+      - name: 📦 Instalar dependencias
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
-      - name: Run daily pipeline
-        run: python scripts/ejecutar_tuberia_diaria.py
-        timeout-minutes: 30
-      
-      - name: Run closed loop
-        run: python scripts/ejecutar_bucle_cerrado.py
-        timeout-minutes: 15
-      
-      - name: Upload inspection list
-        uses: actions/upload-artifact@v3
-        with:
-          name: inspection-list
-          path: datos/procesados/inspecciones_priorizadas_*.csv
-          retention-days: 7
-      
-      - name: Upload metrics
-        uses: actions/upload-artifact@v3
-        with:
-          name: model-metrics
-          path: modelos/actual/metrics.json
-          retention-days: 30
-
-      - name: Verify data availability
+      # ============================================================
+      # PASO 4: CONFIGURAR ENCODING UTF-8
+      # ============================================================
+      - name: 🔧 Configurar encoding UTF-8
         run: |
-            python -c "
-            from pathlib import Path
-            import sys
-            sys.path.append('.')
-            from src.datos.cargador import CargadorIncremental
-            cargador = CargadorIncremental()
-            consumo = cargador.verificar_disponibilidad('consumo')
-            if not consumo['disponible']:
-                print('❌ No hay datos de consumo disponibles')
-                print(f'   {consumo["mensaje"]}')
-                sys.exit(1)
-            print('✅ Datos disponibles')
-            "
+          echo "PYTHONIOENCODING=utf-8" >> $GITHUB_ENV
+          echo "LANG=C.UTF-8" >> $GITHUB_ENV
+          echo "LC_ALL=C.UTF-8" >> $GITHUB_ENV
+      
+      # ============================================================
+      # PASO 5: VERIFICAR ESTRUCTURA DE CARPETAS
+      # ============================================================
+      - name: 📁 Verificar estructura de carpetas
+        run: |
+          mkdir -p datos/cola/pendientes
+          mkdir -p datos/cola/procesando
+          mkdir -p datos/cola/errores
+          mkdir -p datos/brutos/consumo
+          mkdir -p datos/brutos/clientes
+          mkdir -p datos/brutos/alarmas
+          mkdir -p datos/brutos/facturacion
+          mkdir -p datos/brutos/inspecciones
+          mkdir -p datos/procesados
+          mkdir -p datos/metadatos
+          mkdir -p datos/inspeccion/cola/pendientes
+          mkdir -p datos/inspeccion/cola/procesando
+          mkdir -p datos/inspeccion/cola/fallidos
+          mkdir -p datos/inspeccion/cola/completados
+          mkdir -p datos/retroalimentacion/entrenamiento
+          mkdir -p datos/retroalimentacion/inspecciones
+          mkdir -p datos_pasados/consumo
+          mkdir -p datos_pasados/clientes
+          mkdir -p datos_pasados/alarmas
+          mkdir -p datos_pasados/facturacion
+          mkdir -p datos_pasados/inspecciones
+          mkdir -p modelos/actual
+          mkdir -p modelos/historico
+          mkdir -p registros
+          mkdir -p reportes
+          echo "✅ Estructura de carpetas verificada"
+      
+      # ============================================================
+      # PASO 6: GENERAR DATOS REALISTAS (SIMULACIÓN)
+      # ============================================================
+      - name: 📊 Generar datos realistas
+        run: |
+          echo "📊 Generando datos realistas (simulación)..."
+          python scripts/generar_datos_realistas.py
+      
+      # ============================================================
+      # PASO 7: PROCESAR COLA DE DATOS
+      # ============================================================
+      - name: 📥 Procesar cola de datos
+        run: |
+          echo "📥 Procesando cola de datos..."
+          python scripts/procesar_cola_datos.py --procesar
+      
+      # ============================================================
+      # PASO 8: CREAR DATOS DE ENTRENAMIENTO
+      # ============================================================
+      - name: 📊 Crear datos de entrenamiento
+        run: |
+          echo "📊 Creando datos de entrenamiento..."
+          python scripts/crear_datos_entrenamiento.py
+      
+      # ============================================================
+      # PASO 9: EJECUTAR TUBERÍA DIARIA
+      # ============================================================
+      - name: 🚀 Ejecutar tubería diaria
+        if: github.event.inputs.modo == 'completo' || github.event.inputs.modo == 'solo_pipeline' || github.event.inputs.modo == ''
+        run: |
+          echo "🚀 Ejecutando tubería diaria..."
+          python scripts/ejecutar_tuberia_diaria.py
+      
+      # ============================================================
+      # PASO 10: EJECUTAR BUCLE CERRADO
+      # ============================================================
+      - name: 🔄 Ejecutar bucle cerrado
+        if: github.event.inputs.modo == 'completo' || github.event.inputs.modo == 'solo_bucle' || github.event.inputs.modo == ''
+        run: |
+          echo "🔄 Ejecutando bucle cerrado..."
+          python scripts/ejecutar_bucle_cerrado.py
+      
+      # ============================================================
+      # PASO 11: MOSTRAR ESTADÍSTICAS
+      # ============================================================
+      - name: 📊 Mostrar estadísticas
+        if: always()
+        run: |
+          echo "📊 ESTADÍSTICAS DEL PIPELINE"
+          echo "================================"
+          
+          if [ -d "datos/procesados" ]; then
+            echo "📂 Datos procesados:"
+            ls -la datos/procesados/ 2>/dev/null || echo "   (vacío)"
+          fi
+          
+          if [ -d "modelos/actual" ]; then
+            echo "📂 Modelo actual:"
+            ls -la modelos/actual/ 2>/dev/null || echo "   (vacío)"
+          fi
+          
+          if [ -f "datos/procesados/historico_puntajes.parquet" ]; then
+            echo "📊 Histórico: $(python -c "import pandas as pd; df = pd.read_parquet('datos/procesados/historico_puntajes.parquet'); print(f'{len(df)} registros')" 2>/dev/null || echo 'error')"
+          fi
+      
+      # ============================================================
+      # PASO 12: SUBIR ARTIFACTS
+      # ============================================================
+      - name: 📤 Subir lista de inspección
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lista-inspeccion
+          path: |
+            datos/procesados/inspecciones_priorizadas_latest.csv
+            datos/procesados/puntajes_latest.parquet
+          retention-days: 30
+          if-no-files-found: warn
+      
+      - name: 📤 Subir métricas del modelo
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metricas-modelo
+          path: |
+            modelos/actual/metrics.json
+            modelos/actual/version.txt
+          retention-days: 30
+          if-no-files-found: warn
+      
+      - name: 📤 Subir histórico acumulado
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: historico-puntajes
+          path: |
+            datos/procesados/historico_puntajes.parquet
+            datos/retroalimentacion/entrenamiento/estado_bucle.json
+            datos/retroalimentacion/entrenamiento/datos_etiquetados.parquet
+          retention-days: 30
+          if-no-files-found: warn
+      
+      - name: 📤 Subir logs de ejecución
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-ejecucion
+          path: |
+            registros/
+            datos/metadatos/
+          retention-days: 7
+          if-no-files-found: warn
+      
+      # ============================================================
+      # PASO 13: NOTIFICAR RESULTADO
+      # ============================================================
+      - name: ✅ Notificar éxito
+        if: success()
+        run: |
+          echo "=========================================="
+          echo "✅ PIPELINE COMPLETADO EXITOSAMENTE"
+          echo "=========================================="
+          echo "🕐 Fecha: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "🕐 Hora Perú: $(TZ='America/Lima' date '+%Y-%m-%d %H:%M:%S')"
+          echo "=========================================="
+      
+      - name: ❌ Notificar fallo
+        if: failure()
+        run: |
+          echo "=========================================="
+          echo "❌ PIPELINE FALLÓ"
+          echo "=========================================="
+          echo "🕐 Fecha: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "🕐 Hora Perú: $(TZ='America/Lima' date '+%Y-%m-%d %H:%M:%S')"
+          echo "=========================================="
+          exit 1

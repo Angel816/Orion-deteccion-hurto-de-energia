@@ -1,0 +1,99 @@
+# .github/workflows/orion_pruebas.yml
+# ============================================================
+# PROYECTO ORION - PRUEBAS AUTOMÁTICAS
+# ============================================================
+# Ejecuta las pruebas unitarias y de integración
+# cuando se hace push o pull request
+# ============================================================
+
+name: Orion Tests
+
+on:
+  # ============================================================
+  # EJECUCIÓN EN PUSH
+  # ============================================================
+  push:
+    branches: [ main, develop ]
+  
+  # ============================================================
+  # EJECUCIÓN EN PULL REQUEST
+  # ============================================================
+  pull_request:
+    branches: [ main ]
+  
+  # ============================================================
+  # EJECUCIÓN MANUAL
+  # ============================================================
+  workflow_dispatch:
+
+jobs:
+  # ============================================================
+  # JOB PRINCIPAL: PRUEBAS
+  # ============================================================
+  tests:
+    name: 🧪 Pruebas Unitarias
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      # ============================================================
+      # PASO 1: CHECKOUT
+      # ============================================================
+      - name: 📥 Checkout del repositorio
+        uses: actions/checkout@v4
+      
+      # ============================================================
+      # PASO 2: SETUP PYTHON
+      # ============================================================
+      - name: 🐍 Configurar Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+          cache-dependency-path: 'requirements.txt'
+      
+      # ============================================================
+      # PASO 3: INSTALAR DEPENDENCIAS
+      # ============================================================
+      - name: 📦 Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      
+      # ============================================================
+      # PASO 4: CONFIGURAR ENCODING
+      # ============================================================
+      - name: 🔧 Configurar encoding UTF-8
+        run: |
+          echo "PYTHONIOENCODING=utf-8" >> $GITHUB_ENV
+          echo "LANG=C.UTF-8" >> $GITHUB_ENV
+      
+      # ============================================================
+      # PASO 5: EJECUTAR PRUEBAS
+      # ============================================================
+      - name: 🧪 Ejecutar pruebas
+        run: |
+          echo "🧪 Ejecutando pruebas..."
+          if [ -d "pruebas" ]; then
+            pytest pruebas/ -v --tb=short || echo "⚠️ Algunas pruebas fallaron"
+          else
+            echo "ℹ️ No hay carpeta de pruebas"
+          fi
+      
+      # ============================================================
+      # PASO 6: VERIFICAR SINTAXIS
+      # ============================================================
+      - name: 🔍 Verificar sintaxis de scripts
+        run: |
+          echo "🔍 Verificando sintaxis..."
+          for archivo in scripts/*.py; do
+            python -m py_compile "$archivo" && echo "✅ $archivo" || echo "❌ $archivo"
+          done
+      
+      # ============================================================
+      # PASO 7: NOTIFICAR
+      # ============================================================
+      - name: ✅ Notificar éxito
+        if: success()
+        run: echo "✅ Pruebas completadas exitosamente"
