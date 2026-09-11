@@ -1,17 +1,34 @@
 # scripts/ejecutar_flujo_completo.py
 """
-Ejecuta el flujo completo de Orion:
-1. Generar datos realistas
-2. Procesar cola de datos
-3. Crear datos de entrenamiento
-4. Ejecutar tubería diaria
-5. Ejecutar bucle cerrado
-
+Ejecuta el flujo completo de Orion en el ORDEN CORRECTO
 Zona horaria: Perú (UTC-5)
+
+Orden correcto:
+1. Generar datos realistas (envía a la cola)
+2. Procesar cola (normaliza → datos/brutos/)
+3. Ejecutar tubería diaria (crea puntajes_latest + entrena modelo)
+4. Crear datos de entrenamiento (combina features + labels)
+5. Ejecutar bucle cerrado (reentrena modelo con nuevas labels)
 """
 
 import sys
+import io
+import os
 from pathlib import Path
+
+# ============================================================
+# CONFIGURAR UTF-8
+# ============================================================
+
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+if sys.stderr.encoding != 'utf-8':
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
+os.environ['PYTHONIOENCODING'] = 'utf-8'
+os.environ['LANG'] = 'C.UTF-8'
+os.environ['LC_ALL'] = 'C.UTF-8'
+
 sys.path.append(str(Path(__file__).parent.parent))
 
 import subprocess
@@ -25,17 +42,7 @@ from src.utilidades.tiempo import ahora_peru
 # ============================================================
 
 def ejecutar_paso(nombre: str, script: str, argumentos: list = None) -> bool:
-    """
-    Ejecuta un script de Python y maneja errores
-    
-    Parámetros:
-        nombre: Nombre descriptivo del paso
-        script: Ruta del script a ejecutar
-        argumentos: Lista de argumentos adicionales
-    
-    Retorna:
-        True si se ejecutó correctamente, False si falló
-    """
+    """Ejecuta un script de Python y maneja errores"""
     registro.info("")
     registro.info("=" * 70)
     registro.info(f"🚀 PASO: {nombre}")
@@ -58,7 +65,6 @@ def ejecutar_paso(nombre: str, script: str, argumentos: list = None) -> bool:
         
         duracion = time.time() - inicio
         
-        # Mostrar salida
         if result.stdout:
             print(result.stdout)
         
@@ -77,16 +83,14 @@ def ejecutar_paso(nombre: str, script: str, argumentos: list = None) -> bool:
 
 
 # ============================================================
-# VERIFICACIONES
+# VERIFICAR ESTRUCTURA
 # ============================================================
 
-def verificar_estructura() -> bool:
-    """
-    Verifica que la estructura de carpetas necesaria exista
-    """
+def verificar_estructura():
+    """Verifica que la estructura de carpetas exista"""
     registro.info("🔍 Verificando estructura de carpetas...")
     
-    carpetas_necesarias = [
+    carpetas = [
         'datos/cola/pendientes',
         'datos/cola/procesando',
         'datos/cola/errores',
@@ -94,8 +98,8 @@ def verificar_estructura() -> bool:
         'datos/brutos/clientes',
         'datos/brutos/alarmas',
         'datos/brutos/facturacion',
+        'datos/brutos/inspecciones',
         'datos/procesados',
-        'datos/muestra',
         'datos/metadatos',
         'datos/retroalimentacion/entrenamiento',
         'datos/retroalimentacion/inspecciones',
@@ -103,15 +107,17 @@ def verificar_estructura() -> bool:
         'datos_pasados/clientes',
         'datos_pasados/alarmas',
         'datos_pasados/facturacion',
+        'datos_pasados/inspecciones',
         'modelos/actual',
-        'modelos/historico'
+        'modelos/historico',
+        'registros',
+        'reportes'
     ]
     
-    for carpeta in carpetas_necesarias:
+    for carpeta in carpetas:
         Path(carpeta).mkdir(parents=True, exist_ok=True)
     
-    registro.info(f"✅ {len(carpetas_necesarias)} carpetas verificadas")
-    return True
+    registro.info(f"✅ {len(carpetas)} carpetas verificadas")
 
 
 # ============================================================
@@ -119,9 +125,7 @@ def verificar_estructura() -> bool:
 # ============================================================
 
 def main():
-    """
-    Ejecuta el flujo completo de Orion
-    """
+    """Ejecuta el flujo completo en el ORDEN CORRECTO"""
     inicio_total = time.time()
     
     print("")
@@ -136,7 +140,7 @@ def main():
     verificar_estructura()
     
     # ============================================================
-    # PASO 1: GENERAR DATOS REALISTAS
+    # PASO 1: GENERAR DATOS REALISTAS (envía a la cola)
     # ============================================================
     if not ejecutar_paso(
         "Generar datos realistas",
@@ -146,7 +150,7 @@ def main():
         return
     
     # ============================================================
-    # PASO 2: PROCESAR COLA DE DATOS
+    # PASO 2: PROCESAR COLA DE DATOS (normaliza a datos/brutos/)
     # ============================================================
     if not ejecutar_paso(
         "Procesar cola de datos",
@@ -157,7 +161,18 @@ def main():
         return
     
     # ============================================================
-    # PASO 3: CREAR DATOS DE ENTRENAMIENTO
+    # PASO 3: EJECUTAR TUBERÍA DIARIA (crea puntajes + entrena modelo)
+    # ============================================================
+    # ⚠️ ESTE PASO VA ANTES DE crear_datos_entrenamiento
+    if not ejecutar_paso(
+        "Ejecutar tubería diaria",
+        "scripts/ejecutar_tuberia_diaria.py"
+    ):
+        registro.error("❌ Flujo detenido en: Ejecutar tubería diaria")
+        return
+    
+    # ============================================================
+    # PASO 4: CREAR DATOS DE ENTRENAMIENTO (features + labels)
     # ============================================================
     if not ejecutar_paso(
         "Crear datos de entrenamiento",
@@ -167,17 +182,7 @@ def main():
         return
     
     # ============================================================
-    # PASO 4: EJECUTAR TUBERÍA DIARIA
-    # ============================================================
-    if not ejecutar_paso(
-        "Ejecutar tubería diaria",
-        "scripts/ejecutar_tuberia_diaria.py"
-    ):
-        registro.error("❌ Flujo detenido en: Ejecutar tubería diaria")
-        return
-    
-    # ============================================================
-    # PASO 5: EJECUTAR BUCLE CERRADO
+    # PASO 5: EJECUTAR BUCLE CERRADO (reentrena con nuevas labels)
     # ============================================================
     if not ejecutar_paso(
         "Ejecutar bucle cerrado",
@@ -208,12 +213,12 @@ def main():
     else:
         print("   ⚠️ Modelo no encontrado")
     
-    # Verificar histórico
-    historico_path = Path('datos/procesados/historico_puntajes.parquet')
-    if historico_path.exists():
+    # Verificar puntajes
+    puntajes_path = Path('datos/procesados/puntajes_latest.parquet')
+    if puntajes_path.exists():
         import pandas as pd
-        df = pd.read_parquet(historico_path)
-        print(f"   ✅ Histórico: {len(df)} registros")
+        df = pd.read_parquet(puntajes_path)
+        print(f"   ✅ Puntajes: {len(df)} registros")
     
     # Verificar datos de entrenamiento
     train_path = Path('datos/retroalimentacion/entrenamiento/datos_etiquetados.parquet')
@@ -222,10 +227,12 @@ def main():
         df = pd.read_parquet(train_path)
         print(f"   ✅ Datos de entrenamiento: {len(df)} registros")
     
-    # Verificar estado del bucle
-    bucle_path = Path('datos/retroalimentacion/entrenamiento/estado_bucle.json')
-    if bucle_path.exists():
-        print(f"   ✅ Estado del bucle cerrado guardado")
+    # Verificar histórico
+    historico_path = Path('datos/procesados/historico_puntajes.parquet')
+    if historico_path.exists():
+        import pandas as pd
+        df = pd.read_parquet(historico_path)
+        print(f"   ✅ Histórico: {len(df)} registros")
     
     print("")
     print("📋 PRÓXIMOS PASOS:")

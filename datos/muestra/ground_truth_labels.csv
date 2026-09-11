@@ -1,0 +1,201 @@
+id_cliente,tiene_hurto,tipo_hurto,es_zona_riesgo,es_reincidente
+CL-00001,False,,False,False
+CL-00002,False,,False,False
+CL-00003,False,,True,False
+CL-00004,False,,True,False
+CL-00005,False,,False,False
+CL-00006,False,,False,False
+CL-00007,False,,True,False
+CL-00008,True,Manipulación Medidor,True,False
+CL-00009,False,,False,False
+CL-00010,False,,False,False
+CL-00011,False,,True,False
+CL-00012,False,,True,False
+CL-00013,True,Bypass,True,False
+CL-00014,False,,True,False
+CL-00015,False,,False,False
+CL-00016,False,,True,False
+CL-00017,False,,False,False
+CL-00018,False,,False,False
+CL-00019,True,Conexión Clandestina,False,False
+CL-00020,True,Conexión Clandestina,False,False
+CL-00021,False,,False,False
+CL-00022,False,,False,False
+CL-00023,False,,True,False
+CL-00024,False,,False,False
+CL-00025,False,,False,False
+CL-00026,False,,False,False
+CL-00027,False,,True,False
+CL-00028,False,,False,False
+CL-00029,False,,True,False
+CL-00030,False,,False,False
+CL-00031,False,,False,False
+CL-00032,False,,False,False
+CL-00033,False,,False,False
+CL-00034,False,,False,False
+CL-00035,False,,True,False
+CL-00036,False,,True,False
+CL-00037,True,Cable Rajado,False,False
+CL-00038,False,,False,False
+CL-00039,False,,True,False
+CL-00040,False,,False,True
+CL-00041,False,,False,False
+CL-00042,False,,True,False
+CL-00043,False,,True,False
+CL-00044,False,,False,False
+CL-00045,False,,False,False
+CL-00046,False,,False,False
+CL-00047,False,,True,False
+CL-00048,False,,False,False
+CL-00049,False,,True,False
+CL-00050,False,,False,False
+CL-00051,True,Cable Rajado,False,False
+CL-00052,True,Manipulación Medidor,True,False
+CL-00053,False,,False,False
+CL-00054,False,,False,False
+CL-00055,True,Manipulación Medidor,True,False
+CL-00056,False,,False,False
+CL-00057,False,,False,False
+CL-00058,False,,False,False
+CL-00059,True,Bypass,True,False
+CL-00060,False,,False,True
+CL-00061,False,,False,False
+CL-00062,False,,False,False
+CL-00063,False,,False,False
+CL-00064,False,,False,False
+CL-00065,False,,False,False
+CL-00066,False,,False,False
+CL-00067,False,,True,False
+CL-00068,False,,False,False
+CL-00069,False,,False,False
+CL-00070,False,,True,False
+CL-00071,False,,False,False
+CL-00072,False,,True,False
+CL-00073,False,,False,False
+CL-00074,False,,False,False
+CL-00075,False,,True,False
+CL-00076,False,,False,False
+CL-00077,False,,False,False
+CL-00078,True,Conexión Clandestina,False,False
+CL-00079,False,,False,False
+CL-00080,False,,False,False
+CL-00081,False,,False,False
+CL-00082,False,,False,False
+CL-00083,True,Cable Rajado,False,False
+CL-00084,False,,False,False
+CL-00085,True,Cable Rajado,False,True
+CL-00086,False,,False,False
+CL-00087,False,,False,False
+CL-00088,False,,False,False
+CL-00089,False,,True,False
+CL-00090,False,,False,False
+CL-00091,False,,True,False
+CL-00092,False,,False,False
+CL-00093,False,,False,False
+CL-00094,False,,False,True
+CL-00095,False,,False,False
+CL-00096,False,,False,False
+CL-00097,False,,True,False
+CL-00098,True,Bypass,False,False
+CL-00099,True,Cable Rajado,True,False
+CL-00100,False,,True,False
+CL-00101,False,,True,False
+CL-00102,False,,True,False
+CL-00103,False,,True,False
+CL-00104,False,,True,False
+CL-00105,False,,False,False
+CL-00106,False,,False,False
+CL-00107,False,,False,False
+CL-00108,False,,False,False
+CL-00109,False,,True,False
+CL-00110,False,,True,False
+CL-00111,True,Conexión Clandestina,False,False
+CL-00112,False,,True,False
+CL-00113,False,,True,False
+CL-00114,False,,False,False
+CL-00115,False,,True,False
+CL-00116,False,,True,False
+CL-00117,False,,False,False
+CL-00118,False,,False,False
+CL-00119,False,,True,False
+CL-00120,False,,True,False
+CL-00121,False,,False,False
+CL-00122,False,,False,False
+CL-00123,False,,True,False
+CL-00124,False,,False,False
+CL-00125,False,,False,False
+CL-00126,False,,False,False
+CL-00127,False,,True,False
+CL-00128,False,,False,False
+CL-00129,False,,False,True
+CL-00130,False,,False,False
+CL-00131,False,,False,False
+CL-00132,True,Cable Rajado,False,False
+CL-00133,False,,True,False
+CL-00134,False,,False,False
+CL-00135,False,,False,False
+CL-00136,True,Cable Rajado,False,False
+CL-00137,False,,True,False
+CL-00138,True,Cable Rajado,True,True
+CL-00139,False,,False,False
+CL-00140,False,,True,False
+CL-00141,False,,False,False
+CL-00142,False,,False,False
+CL-00143,True,Bypass,True,False
+CL-00144,False,,False,False
+CL-00145,True,Conexión Clandestina,False,False
+CL-00146,False,,False,False
+CL-00147,True,Auto-reconexión,True,False
+CL-00148,False,,True,False
+CL-00149,False,,False,False
+CL-00150,False,,True,False
+CL-00151,False,,True,False
+CL-00152,False,,True,False
+CL-00153,False,,False,False
+CL-00154,False,,False,False
+CL-00155,False,,False,False
+CL-00156,False,,False,False
+CL-00157,False,,False,False
+CL-00158,False,,False,False
+CL-00159,False,,False,True
+CL-00160,False,,True,False
+CL-00161,False,,False,False
+CL-00162,False,,True,False
+CL-00163,False,,False,False
+CL-00164,True,Bypass,False,False
+CL-00165,False,,True,False
+CL-00166,False,,False,False
+CL-00167,False,,True,False
+CL-00168,True,Manipulación Medidor,True,False
+CL-00169,True,Bypass,False,False
+CL-00170,False,,True,False
+CL-00171,False,,False,False
+CL-00172,True,Manipulación Medidor,True,True
+CL-00173,False,,False,False
+CL-00174,False,,False,False
+CL-00175,False,,True,False
+CL-00176,False,,False,False
+CL-00177,False,,False,False
+CL-00178,False,,False,False
+CL-00179,False,,False,False
+CL-00180,False,,False,False
+CL-00181,False,,False,True
+CL-00182,False,,False,False
+CL-00183,True,Cable Rajado,True,False
+CL-00184,True,Conexión Clandestina,True,False
+CL-00185,True,Bypass,True,False
+CL-00186,False,,False,False
+CL-00187,False,,False,False
+CL-00188,False,,False,False
+CL-00189,False,,False,False
+CL-00190,False,,False,False
+CL-00191,False,,True,False
+CL-00192,False,,False,False
+CL-00193,False,,False,False
+CL-00194,False,,True,False
+CL-00195,False,,False,False
+CL-00196,False,,False,False
+CL-00197,False,,False,False
+CL-00198,False,,False,False
+CL-00199,False,,True,False
+CL-00200,True,Bypass,True,False
