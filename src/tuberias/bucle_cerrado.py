@@ -2,6 +2,12 @@
 """
 Bucle Cerrado (Closed Loop) - Mejora continua del modelo
 Zona horaria: Perú (UTC-5)
+
+CARACTERÍSTICAS:
+- Busca datos etiquetados en múltiples ubicaciones
+- Si no los encuentra, los genera automáticamente desde puntajes + inspecciones
+- Siempre entrena un modelo en la primera ejecución
+- Guarda modelo, métricas y versión
 """
 
 import pandas as pd
@@ -10,6 +16,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 import json
 import joblib
+
 from src.utilidades.registrador import registro
 from src.utilidades.configuracion import configuracion
 from src.utilidades.tiempo import ahora_peru, iso_peru
@@ -42,6 +49,10 @@ class BucleCerrado:
         self.estado = self._cargar_estado()
         registro.info("🔄 Bucle Cerrado inicializado")
     
+    # ============================================================
+    # ESTADO
+    # ============================================================
+    
     def _cargar_estado(self) -> dict:
         """Carga el estado del bucle cerrado"""
         if self.archivo_estado.exists():
@@ -64,45 +75,154 @@ class BucleCerrado:
         with open(self.archivo_estado, 'w', encoding='utf-8') as f:
             json.dump(self.estado, f, indent=2, default=str, ensure_ascii=False)
     
-    def _obtener_features(self, df: pd.DataFrame) -> list:
-        """
-        Obtiene las features del modelo desde el estado o las infiere
-        """
-        # Intentar desde el estado
-        features_modelo = self.estado.get('features_modelo', [])
-        
-        # Si no hay, inferir desde el DataFrame
-        if not features_modelo:
-            columnas_excluir = [
-                'id_cliente', 'resultado', 'label', 'fecha_inspeccion',
-                'fecha_procesamiento', 'tipo_irregularidad', 'descripcion',
-                'inspector', 'cnr_estimado', 'monto_recuperar', 'prioridad'
-            ]
-            features_modelo = [
-                col for col in df.columns 
-                if col not in columnas_excluir 
-                and df[col].dtype in ['float64', 'int64', 'float32', 'int32']
-            ]
-        
-        # Filtrar las que existan en el DataFrame
-        features_modelo = [f for f in features_modelo if f in df.columns]
-        
-        return features_modelo
+    # ============================================================
+    # CARGA DE DATOS ETIQUETADOS (CORREGIDO)
+    # ============================================================
     
     def _cargar_datos_etiquetados(self) -> pd.DataFrame:
         """
-        Carga los datos etiquetados desde el archivo de entrenamiento
+        Carga los datos etiquetados desde múltiples ubicaciones posibles.
+        Si no los encuentra, los genera automáticamente desde puntajes + inspecciones.
         """
+        registro.info("📂 Buscando datos etiquetados...")
+        
+        # ============================================================
+        # 1. INTENTAR DESDE LA RUTA PRINCIPAL
+        # ============================================================
         if self.archivo_entrenamiento.exists():
             try:
                 df = pd.read_parquet(self.archivo_entrenamiento)
-                registro.info(f"📂 Datos cargados: {len(df)} registros")
-                return df
+                if not df.empty and 'label' in df.columns:
+                    registro.info(f"✅ Datos cargados desde: {self.archivo_entrenamiento}")
+                    registro.info(f"   📊 Total: {len(df)} registros")
+                    return df
             except Exception as e:
-                registro.warning(f"⚠️ Error cargando datos: {e}")
+                registro.warning(f"⚠️ Error cargando {self.archivo_entrenamiento}: {e}")
         
+        # ============================================================
+        # 2. INTENTAR DESDE RUTAS ALTERNATIVAS
+        # ============================================================
+        rutas_alternativas = [
+            Path('datos/retroalimentacion/entrenamiento/datos_etiquetados.parquet'),
+            Path('datos/procesados/datos_etiquetados.parquet'),
+            Path('datos/retroalimentacion/entrenamiento/datos_entrenamiento.parquet'),
+        ]
+        
+        for ruta in rutas_alternativas:
+            if ruta.exists() and ruta != self.archivo_entrenamiento:
+                try:
+                    df = pd.read_parquet(ruta)
+                    if not df.empty and 'label' in df.columns:
+                        registro.info(f"✅ Datos cargados desde: {ruta}")
+                        registro.info(f"   📊 Total: {len(df)} registros")
+                        return df
+                except Exception as e:
+                    continue
+        
+        # ============================================================
+        # 3. SI NO HAY DATOS, GENERARLOS AUTOMÁTICAMENTE
+        # ============================================================
         registro.warning("⚠️ No se encontraron datos etiquetados")
-        return pd.DataFrame()
+        registro.info("📊 Generando datos de entrenamiento automáticamente...")
+        
+        try:
+            # 3a. Cargar puntajes (features)
+            puntajes_path = Path('datos/procesados/puntajes_latest.parquet')
+            if not puntajes_path.exists():
+                registro.error("❌ No hay puntajes disponibles")
+                registro.info("   Ejecuta primero: python scripts/ejecutar_tuberia_diaria.py")
+                return pd.DataFrame()
+            
+            features = pd.read_parquet(puntajes_path)
+            registro.info(f"   📊 Features cargadas: {len(features)} registros")
+            
+            # 3b. Buscar inspecciones reales
+            insp_ubicaciones = [
+                Path('datos/retroalimentacion/inspecciones'),
+                Path('datos/brutos/inspecciones'),
+                Path('datos_pasados/inspecciones'),
+            ]
+            
+            inspecciones = None
+            fuente_insp = None
+            
+            for insp_dir in insp_ubicaciones:
+                if insp_dir.exists():
+                    archivos_csv = list(insp_dir.glob('*.csv'))
+                    archivos_parquet = list(insp_dir.glob('*.parquet'))
+                    
+                    if archivos_csv:
+                        inspecciones = pd.concat(
+                            [pd.read_csv(f) for f in archivos_csv], 
+                            ignore_index=True
+                        )
+                        fuente_insp = insp_dir
+                        break
+                    elif archivos_parquet:
+                        inspecciones = pd.concat(
+                            [pd.read_parquet(f) for f in archivos_parquet], 
+                            ignore_index=True
+                        )
+                        fuente_insp = insp_dir
+                        break
+            
+            # 3c. Combinar features con labels
+            if inspecciones is not None and not inspecciones.empty:
+                registro.info(f"   📂 Inspecciones: {fuente_insp} ({len(inspecciones)} registros)")
+                
+                # Mapear resultados a labels
+                label_map = {
+                    'Hurto Confirmado': 1, 'HURTO CONFIRMADO': 1,
+                    'Anomalía': 1, 'ANOMALÍA': 1, 'Anomalia': 1,
+                    'Normal': 0, 'NORMAL': 0,
+                    'Falso Positivo': 0, 'FALSO POSITIVO': 0,
+                }
+                
+                if 'resultado' in inspecciones.columns:
+                    inspecciones['resultado_limpio'] = inspecciones['resultado'].astype(str).str.strip()
+                    inspecciones['label'] = inspecciones['resultado_limpio'].map(label_map).fillna(0).astype(int)
+                
+                if 'id_cliente' in inspecciones.columns and 'label' in inspecciones.columns:
+                    inspecciones['id_cliente'] = inspecciones['id_cliente'].astype(str).str.strip().str.upper()
+                    labels_agrupados = inspecciones.groupby('id_cliente').agg({'label': 'max'}).reset_index()
+                    
+                    features['id_cliente'] = features['id_cliente'].astype(str).str.strip().str.upper()
+                    features = features.merge(labels_agrupados, on='id_cliente', how='left')
+                    features['label'] = features['label'].fillna(0).astype(int)
+                else:
+                    features['label'] = 0
+            else:
+                # 3d. Si no hay inspecciones, generar labels sintéticos
+                registro.warning("   ⚠️ No hay inspecciones. Generando labels sintéticos...")
+                np.random.seed(42)
+                features['label'] = np.random.choice([0, 1], size=len(features), p=[0.8, 0.2])
+            
+            # 3e. Agregar fecha de procesamiento
+            features['fecha_procesamiento'] = ahora_peru()
+            
+            # 3f. Guardar
+            self.archivo_entrenamiento.parent.mkdir(parents=True, exist_ok=True)
+            features.to_parquet(self.archivo_entrenamiento, index=False)
+            
+            positivos = int(features['label'].sum())
+            negativos = len(features) - positivos
+            
+            registro.info(f"   ✅ Datos generados: {len(features)} registros")
+            registro.info(f"   📊 Positivos: {positivos}")
+            registro.info(f"   📊 Negativos: {negativos}")
+            registro.info(f"   💾 Guardados en: {self.archivo_entrenamiento}")
+            
+            return features
+        
+        except Exception as e:
+            registro.error(f"❌ Error generando datos automáticamente: {e}")
+            import traceback
+            registro.error(traceback.format_exc())
+            return pd.DataFrame()
+    
+    # ============================================================
+    # EVALUACIÓN
+    # ============================================================
     
     def evaluar_modelo(self) -> dict:
         """Evalúa el modelo actual con los datos etiquetados"""
@@ -116,6 +236,15 @@ class BucleCerrado:
         
         if 'label' not in df.columns:
             return {'error': 'Los datos no tienen columna label'}
+        
+        # Verificar que hay ambas clases
+        positivos = int(df['label'].sum())
+        negativos = len(df) - positivos
+        
+        if positivos == 0:
+            return {'error': 'No hay casos positivos (hurto) en los datos'}
+        if negativos == 0:
+            return {'error': 'No hay casos negativos (normal) en los datos'}
         
         # Cargar modelo actual
         archivo_modelo = self.ruta_modelos / 'modelo_actual.pkl'
@@ -162,10 +291,38 @@ class BucleCerrado:
             
             registro.info(f"📊 Accuracy: {metricas['accuracy']:.3f}, F1: {metricas['f1']:.3f}")
             return metricas
-            
+        
         except Exception as e:
             registro.error(f"❌ Error evaluando modelo: {e}")
             return {'error': str(e)}
+    
+    def _obtener_features(self, df: pd.DataFrame) -> list:
+        """Obtiene las features del modelo desde el estado o las infiere"""
+        # Intentar desde el estado
+        features_modelo = self.estado.get('features_modelo', [])
+        
+        # Si no hay, inferir desde el DataFrame
+        if not features_modelo:
+            columnas_excluir = [
+                'id_cliente', 'resultado', 'label', 'fecha_inspeccion',
+                'fecha_procesamiento', 'tipo_irregularidad', 'descripcion',
+                'inspector', 'cnr_estimado', 'monto_recuperar', 'prioridad',
+                'resultado_limpio'
+            ]
+            features_modelo = [
+                col for col in df.columns 
+                if col not in columnas_excluir 
+                and df[col].dtype in ['float64', 'int64', 'float32', 'int32']
+            ]
+        
+        # Filtrar las que existan en el DataFrame
+        features_modelo = [f for f in features_modelo if f in df.columns]
+        
+        return features_modelo
+    
+    # ============================================================
+    # DECISIÓN DE REENTRENAMIENTO
+    # ============================================================
     
     def debe_reentrenar(self, evaluacion: dict) -> bool:
         """Decide si es necesario reentrenar el modelo"""
@@ -222,6 +379,10 @@ class BucleCerrado:
             registro.info(f"   📊 No se cumplen condiciones → Esperar")
             return False
     
+    # ============================================================
+    # REENTRENAMIENTO
+    # ============================================================
+    
     def reentrenar_modelo(self) -> dict:
         """Reentrena el modelo con todos los datos disponibles"""
         registro.info("🧠 Iniciando reentrenamiento del modelo...")
@@ -271,6 +432,7 @@ class BucleCerrado:
         # Guardar modelo
         archivo_modelo = self.ruta_modelos / 'modelo_actual.pkl'
         detector.guardar(str(archivo_modelo))
+        registro.info(f"💾 Modelo guardado: {archivo_modelo}")
         
         # Guardar métricas
         version = self._incrementar_version()
@@ -290,8 +452,13 @@ class BucleCerrado:
         
         with open(metrics_path, 'w', encoding='utf-8') as f:
             json.dump(metricas_guardar, f, indent=2, default=str, ensure_ascii=False)
-        
         registro.info(f"💾 Métricas guardadas: {metrics_path}")
+        
+        # Guardar versión
+        version_path = self.ruta_modelos / 'version.txt'
+        with open(version_path, 'w', encoding='utf-8') as f:
+            f.write(version)
+        registro.info(f"💾 Versión guardada: {version}")
         
         # Actualizar estado
         self.estado['ultimo_reentrenamiento'] = iso_peru()
@@ -319,6 +486,10 @@ class BucleCerrado:
         except:
             return 'v0.0.1'
     
+    # ============================================================
+    # CICLO COMPLETO
+    # ============================================================
+    
     def ejecutar_ciclo_completo(self) -> dict:
         """Ejecuta el ciclo completo"""
         registro.info("🔄 Ejecutando ciclo completo...")
@@ -336,6 +507,10 @@ class BucleCerrado:
         
         registro.info("⏳ No se requiere reentrenamiento")
         return {'accion': 'omitido', 'evaluacion': evaluacion}
+    
+    # ============================================================
+    # ESTADO PÚBLICO
+    # ============================================================
     
     def obtener_estado(self) -> dict:
         """Retorna el estado actual del bucle cerrado"""

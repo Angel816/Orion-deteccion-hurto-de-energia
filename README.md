@@ -19,27 +19,42 @@
 | **Recuperar** energía no registrada | CNR > 80% del estimado |
 | **Prevenir** reincidencia | Reducción > 30% |
 
+### Inspiración del Nombre
+
+**Orion** (la constelación del cazador) simboliza:
+- 🔍 El cazador que detecta y captura el hurto
+- ⭐ Las tres estrellas del cinturón: Detección → Priorización → Recuperación
+- 👁️ Visión privilegiada: datos que iluminan las anomalías
+- 🧭 Guía constante: referente en detección de pérdidas
+
 ---
 
-## 🏗️ Estructura del Proyecto
+## 🎯 Enfoque
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ DATO → ACCIÓN → APRENDIZAJE │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ │
+│ 🔍 DETECCIÓN 🎯 PRIORIZACIÓN 🛠️ INSPECCIÓN ⚖️ RECUPERACIÓN │
+│ (Machine (Scoring (Campo (CNR + │
+│ Learning) + Fases) + SHAP) Recupero) │
+│ │
+│ 🔄 CLOSED LOOP │
+│ (Feedback → Reentrenamiento → Mejora Continua) │
+│ │
+└─────────────────────────────────────────────────────────────────────────────┘
 
-En analisis-
+---
 
-## 🚀 Instalación
+## 🚀 Instalación Rápida
+
+### Requisitos Previos
+
+- Python 3.10 o superior
+- Git
+- VS Code (recomendado)
+
+### Paso 1: Clonar el repositorio
 
 ```bash
-# 1. Clonar repositorio
-git clone https://github.com/tu-usuario/Orion-deteccion-hurto-de-energia.git
+git clone https://github.com/Angel816/Orion-deteccion-hurto-de-energia.git
 cd Orion-deteccion-hurto-de-energia
-
-# 2. Crear entorno virtual
-python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-.venv\Scripts\activate     # Windows
-
-# 3. Instalar dependencias
-pip install -r requirements.txt
-
-# 4. Configurar variables de entorno
-cp .env.example .env
-# Editar .env con valores reales
